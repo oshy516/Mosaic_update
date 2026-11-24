@@ -1,0 +1,4 @@
+network,ppcg,mosaic_ppcg,tvm,mosaic_tvm,ppcg_ms,tvm_ms
+AlexNet,1,1.660,1,1.159,850.869,26.2720
+Seq2Seq,1,9.227,1,1.052,102720,614.433
+BertTiny,1,4.900,1,1.127,226.710,5.40400

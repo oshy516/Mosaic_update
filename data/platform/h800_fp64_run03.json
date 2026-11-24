@@ -1,0 +1,68 @@
+{
+  "gpu_hardware": {
+    "warp_size": 32,
+    "max_threads_per_block": 1024,
+    "shared_mem_per_block": 49152,
+    "global_mem_latency": 677.163483,
+    "shared_mem_latency": 23.002823,
+    "register_latency": 5.080231,
+    "fma_latency": 64.002350,
+    "fma_throughput": 64.001131,
+    "max_private_array_size": 64,
+    "min_coalescing_width": 16,
+    "num_sms": 132,
+    "max_threads_per_sm": 2048,
+    "max_blocks_per_sm": 32,
+    "shared_mem_per_sm": 233472,
+    "gpu_name": "NVIDIA H800",
+    "compute_capability": "9.0"
+  },
+  "measurement_details": {
+    "selected_precision": "fp64",
+    "timer": "clock64; direct SM cycle counts",
+    "latency_unit": "cycles per dependent operation",
+    "fma_throughput_unit": "cycles/FMA per thread in one active warp; lower is faster",
+    "global_method": "Random pointer chain, ld.global.cg, L2 eviction before each sample; estimated cold global latency, includes TLB effects; DRAM miss rate not verified",
+    "register_method": "Two interdependent add.u32 accumulators; 32 active lanes with different seeds, lane 0 measured; not intrinsic register-file latency",
+    "overhead": "Unrolled loops; amortized loop, timer, dependent endpoint store/fence and scheduling costs retained",
+    "shared_memory_mode": "default",
+    "warmup_samples": 5, "recorded_samples": 21,
+    "random_seed": 20261112, "chain_bytes": 268435456,
+    "node_stride_bytes": 32, "eviction_bytes": 104857600,
+    "global_loads_per_sample": 32768,
+    "latency_operations_per_sample": 65536,
+    "throughput_threads": 32, "throughput_streams_per_thread": 8,
+    "throughput_fmas_per_thread": 524288,
+    "global_mem_latency": {"median": 677.163483, "min": 676.206360, "p10": 676.497192, "p90": 678.087830, "max": 679.005157, "samples": [678.201385, 677.153229, 676.497192, 677.163483, 677.117218, 677.760834, 677.895569, 677.605927, 676.206360, 676.790680, 678.087830, 676.982605, 677.751923, 676.476501, 677.080719, 676.513367, 679.005157, 677.389679, 677.058685, 677.773102, 677.554169]},
+    "shared_mem_latency": {"median": 23.002823, "min": 23.002823, "p10": 23.002823, "p90": 23.002823, "max": 23.002823, "samples": [23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823, 23.002823]},
+    "register_latency": {"median": 5.080231, "min": 5.080215, "p10": 5.080231, "p90": 5.080246, "max": 5.080246, "samples": [5.080231, 5.080231, 5.080246, 5.080246, 5.080231, 5.080231, 5.080231, 5.080215, 5.080231, 5.080231, 5.080215, 5.080246, 5.080231, 5.080231, 5.080231, 5.080246, 5.080231, 5.080231, 5.080246, 5.080246, 5.080231]},
+    "fp32": {"fma_latency": {"median": 4.057785, "min": 4.057785, "p10": 4.057785, "p90": 4.057785, "max": 4.057785, "samples": [4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785, 4.057785]}, "fma_throughput": {"median": 1.093935, "min": 1.093935, "p10": 1.093935, "p90": 1.093935, "max": 1.093935, "samples": [1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935, 1.093935]}},
+    "fp64": {"fma_latency": {"median": 64.002350, "min": 64.002304, "p10": 64.002304, "p90": 64.002457, "max": 64.002457, "samples": [64.002304, 64.002457, 64.002350, 64.002350, 64.002304, 64.002457, 64.002350, 64.002350, 64.002304, 64.002457, 64.002350, 64.002350, 64.002304, 64.002457, 64.002350, 64.002350, 64.002304, 64.002457, 64.002350, 64.002350, 64.002304]}, "fma_throughput": {"median": 64.001131, "min": 64.001005, "p10": 64.001005, "p90": 64.001169, "max": 66.991957, "samples": [64.001129, 64.001133, 64.001070, 64.001131, 64.001053, 64.001005, 64.001141, 64.001169, 64.001129, 64.001133, 64.001070, 64.001131, 64.001053, 64.001005, 64.001141, 64.001169, 66.991957, 64.001005, 64.001141, 64.001131, 64.001129]}}
+  },
+  "model_parameter_sources": {
+    "max_private_array_size": "User-configurable solver policy; default 64; not a hardware measurement",
+    "min_coalescing_width": "User-configurable solver policy; default 16; not a hardware measurement"
+  },
+  "device_details": {
+    "device_index": 0,
+    "cuda_driver_api_version": 13000, "cuda_runtime_version": 12080,
+    "cuda_compile_version": 12080,
+    "global_mem_bytes": 85017493504, "l2_cache_bytes": 52428800,
+    "memory_bus_width_bits": 5120,
+    "reported_clock_khz_not_used_for_timing": 1980000,
+    "shared_mem_per_block_default": 49152,
+    "shared_mem_per_block_optin": 232448,
+    "reserved_shared_mem_per_block": 1024,
+    "registers_per_sm_32bit": 65536
+  },
+  "reference_hopper_sm90": {
+    "source": "NVIDIA Hopper Tuning Guide and CUDA compute-capability tables",
+    "target_board": "NVIDIA H800 SXM 80GB", "compute_capability": "9.0",
+    "scope": "Architecture checks only; board form factor must be confirmed on the target machine. SM count, L2 and HBM bytes are queried, not hardcoded.",
+    "warp_size": 32, "max_threads_per_block": 1024,
+    "max_threads_per_sm": 2048, "max_blocks_per_sm": 32,
+    "shared_mem_per_sm": 233472, "shared_mem_per_block_default": 49152,
+    "shared_mem_per_block_optin": 232448,
+    "queried_architecture_limits_match": true
+  }
+}

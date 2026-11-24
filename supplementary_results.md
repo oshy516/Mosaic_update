@@ -1,6 +1,6 @@
 # Supplementary experiment results
 
-The following tables contain the reported aggregates for the marked revision. Timings and speedups used for the four plots are available as [CSV files](data).
+The following tables contain the reported aggregates for the marked revision. Timings and speedups used for the three figures and Table 6 are available as [CSV files](data).
 
 ## Measured regret on the RTX 4090 (§6.2)
 
@@ -24,11 +24,11 @@ The geometric mean is 5.53% for the original five and 5.98% for all nine. Seven 
 
 | Program | Measured configurations classified | Violated C4 | Faster violators | Comparison |
 |---|---:|---:|---:|---|
-| GEMM | 2,224 | 938 | 2 | Two beat the fastest C4-feasible configuration. The latter was within 0.62% of the measured optimum. |
+| GEMM | 2,232 | 941 | 2 | Two beat the fastest C4-feasible configuration. The latter was within 0.80% of the measured optimum. |
 | Jacobi-2D | 739 | 493 | 0 | The fastest violator was 9.4% slower than Mosaic's selection. |
 | ATAX | 784 | 0 | 0 | All satisfied C4. |
 
-The classification covers 3,747 configurations. Section 2.1 reports 2,232 successful launches for the Fig. 1 GEMM sweep. The classification count reported in §6.1 is 2,224.
+The classification uses all 2,232 successful GEMM configurations from the Fig. 1 sweep. The fastest measured time was 25.728223 ms. The fastest configuration satisfying C4 took 25.934214 ms. [Per-configuration results](data/gemm_c4.csv)
 
 In the separate compilation check, 14 of 11,240 C4-feasible candidates spilled registers (0.1246%). Counting each FP64 data value as two 32-bit slots retained all five selected kernels and excluded all 14 spilling candidates. For the selected GEMM kernel, the live-value estimate was 21, the slot-based estimate was 38, PTXAS allocated 40 slots per thread, and the budget was 42.
 
@@ -39,7 +39,7 @@ In the separate compilation check, 14 of 11,240 C4-feasible candidates spilled r
 | Agreement (18) | 2mm, 3mm, adi, atax, cholesky, correlation, covariance, fdtd-2d, gemm, gemver, gesummv, heat-3d, jacobi-1d, jacobi-2d, lu, seidel-2d, syr2k, syrk |
 | Disagreement (7) | bicg, doitgen, gramschmidt, mvt, symm, trisolv, trmm |
 
-Auxiliary kernels left to PPCG defaults were counted as consistent, as were written arrays that PPCG staged in accordance with Mosaic's fixed rule. All observed discrepancies had the same direction: Mosaic counted an array in shared memory while PPCG accessed it directly from global memory. The geometric-mean speedup over PPCG among those seven programs was 1.20×. The separate ablation in Fig. 10 reports 1.32× with the register filter and 1.79× with placement-scenario enumeration added.
+Auxiliary kernels left to PPCG defaults were counted as consistent, as were written arrays that PPCG staged in accordance with Mosaic's fixed rule. All observed discrepancies had the same direction: Mosaic counted an array in shared memory while PPCG accessed it directly from global memory. The geometric-mean speedup over PPCG among those seven programs was 1.20×. The separate ablation in Fig. 9 reports 1.32× with the register filter and 1.79× with placement-scenario enumeration added.
 
 ## Network solve times (§6.6)
 
@@ -49,7 +49,7 @@ Auxiliary kernels left to PPCG defaults were counted as consistent, as were writ
 | Seq2Seq | 7,203 | 3 (embedding, LSTM, dense) | 0.59 s |
 | BertTiny | 39 | 7 | 2.73 s |
 
-Solve times are one-time compilation costs. [Fig. 9 data](data/network_bars.csv) gives the baseline execution times and the speedups for the corresponding networks.
+Solve times are one-time compilation costs. [Fig. 8 data](data/network_bars.csv) gives the baseline execution times and the speedups for the corresponding networks.
 
 ## H800 platform (Table 3)
 
@@ -60,8 +60,9 @@ Solve times are one-time compilation costs. [Fig. 9 data](data/network_bars.csv)
 | L2 cache | 50 MiB |
 | Shared memory | 228 KiB per SM, 48 KiB per block by default, 227 KiB per block with opt-in |
 | Registers per SM | 65,536 32-bit slots |
-| Device memory | 80 GB nominal |
+| Device memory | 80 GiB |
 | CUDA / NVCC | 12.8 / 12.8.93 |
-| OS and L1 cache | Unreported in the supplied platform records |
+| OS | Ubuntu 22.04 |
+| L1 cache | 256 KiB |
 
 [Measured H800 FP64 profile](data/platform/h800_fp64_run03.json) · [CUDA toolchain component manifest](data/platform/toolchain_manifest.json)

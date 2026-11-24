@@ -1,0 +1,370 @@
+% !TEX root =  mosaic.tex
+\section{Overview of \name}
+\label{sec:overview}
+
+\name treats the transformed program as the boundary between transformation scheduling and execution-space optimization: existing schedulers fix the legal computation order and mapping structure, and \name selects only the tile sizes \(\tvec\) and thread-block dimensions \(\mathbf{b}\) that this structure leaves open while reasoning over abstract shared-memory placement scenarios \(S\) and accounting for occupancy and register pressure. Throughout, \name operates outside the compiler; the backend is driven as a black box and all resource reasoning happens in \name. As summarized in \autoref{fig:mosaic-pipeline}, the workflow comprises four components:
+
+% Required in the preamble:
+% \usepackage{tikz}
+% \usetikzlibrary{arrows.meta,fit,positioning,calc,backgrounds,matrix}
+%
+% Palette used by this figure:
+\definecolor{color1}{RGB}{199,56,73}
+\definecolor{color2}{RGB}{248,189,211}
+\definecolor{color3}{RGB}{191,170,210}
+\definecolor{color4}{RGB}{147,197,235}
+\definecolor{color5}{RGB}{157,159,163}
+
+\begin{figure*}[!tbp]
+\centering
+\begin{adjustbox}{max width=\textwidth}
+\begin{tikzpicture}[
+  font=\tiny,
+  >={Stealth[length=1.7mm]},
+  box/.style={
+    rectangle,
+    rounded corners=2pt,
+    draw=color5!82!black,
+    align=left,
+    inner sep=2.1pt,
+    minimum height=11mm
+  },
+  input/.style={
+    box,
+    fill=color3!18,
+    draw=color3!72!black,
+    text width=37mm
+  },
+  target/.style={
+    box,
+    fill=color4!20,
+    draw=color4!70!black,
+    text width=28mm
+  },
+  stage/.style={
+    box,
+    fill=color2!24,
+    draw=color1!66!black,
+    align=center,
+    text width=16mm,
+    minimum height=7.2mm,
+    inner sep=1.8pt
+  },
+  selected/.style={
+    box,
+    fill=color1!10,
+    draw=color1!70!black,
+    text width=42mm,
+    minimum height=9.2mm
+  },
+  backend/.style={
+    box,
+    fill=color3!15,
+    draw=color3!72!black,
+    text width=42mm,
+    minimum height=9.2mm
+  },
+  title/.style={
+    font=\scriptsize\bfseries,
+    align=center
+  },
+  arr/.style={
+    ->,
+    line width=0.6pt,
+    draw=color1!82!black
+  },
+  darr/.style={
+    ->,
+    line width=0.55pt,
+    dashed,
+    draw=color5!88!black
+  },
+  dline/.style={
+    line width=0.55pt,
+    dashed,
+    draw=color5!88!black
+  },
+]
+
+% ------------------------------------------------------------------
+% External compiler / target inputs
+% ------------------------------------------------------------------
+\matrix (inputboxes) [
+  matrix of nodes,
+  nodes in empty cells,
+  column sep=1mm,
+  inner sep=0pt,
+  anchor=west
+] {
+  \node[target] (prof) {%
+    \textbf{Target profile}\\[-0.2pt]
+    \textbf{\textit{Hardware limits}}\\[-0.3pt]
+    registers and shared memory\\[-0.3pt]
+    \mbox{blocks, threads, and SM count}\\[-0.2pt]
+    \textbf{\textit{Effective costs}}\\[-0.3pt]
+    memory, synchronization, and compute};
+  &
+  \node[input] (sched) {%
+    \textbf{Schedule metadata}\\[-0.2pt]
+    \textbf{\textit{Loop structure}}\\[-0.3pt]
+    variables, extents, bands, and fixed order\\[-0.3pt]
+    tileable axes and existing GPU mappings\\[-0.2pt]
+    \textbf{\textit{Data access}}\\[-0.3pt]
+    array roles and affine access maps\\[-0.3pt]
+    access layouts and coalescing directions};
+  \\
+};
+
+\begin{scope}[on background layer]
+  \node[
+    fit=(prof)(sched),
+    inner sep=0pt
+  ] (inputgroup) {};
+\end{scope}
+
+% ------------------------------------------------------------------
+% \name analytical engine
+% ------------------------------------------------------------------
+\node[stage, text width=19mm, anchor=west]
+  (cls)
+  at ([xshift=2.5mm,yshift=5.1mm]inputboxes.east)
+  {Dimension\\classification};
+
+\node[stage, text width=19mm, right=6mm of cls]
+  (cand)
+  {Tile/block\\candidate sets};
+
+\node[stage, text width=19mm, right=6mm of cand]
+  (scen)
+  {Placement\\scenarios \(\Sigma\)};
+
+\node[stage, text width=19mm, below=3mm of cls]
+  (feas)
+  {Feasible domain\\\(\mathcal{V}(S)\)};
+
+\node[stage, text width=19mm, right=6mm of feas]
+  (cost)
+  {Cost model\\\(\phi,\ T_{\mathit{block}},\ F,\ \Phi\)};
+
+\node[stage, text width=19mm, right=6mm of cost]
+  (solve)
+  {Two-stage\\analytical selection};
+
+\begin{scope}[on background layer]
+  \node[
+    draw=color1!58!black,
+    rounded corners=3pt,
+    fill=color2!10,
+    inner xsep=2.0mm,
+    inner ysep=3.8mm,
+    fit=(cls)(cand)(scen)(feas)(cost)(solve)
+  ] (engine) {};
+\end{scope}
+
+\draw[arr]
+  (cls.east)
+  -- (cand.west);
+
+\draw[arr]
+  (cls.south)
+  -- (feas.north);
+
+\draw[arr]
+  (cand.south)
+  -- (cost.north);
+
+\draw[arr]
+  (scen.south)
+  -- (solve.north);
+
+\draw[arr]
+  (cost.east)
+  -- (solve.west);
+
+\draw[arr, rounded corners=1.2pt]
+  (feas.south)
+  -- ++(0,-1.0mm)
+  -| (solve.south);
+
+% ------------------------------------------------------------------
+% Compiler adapter and backend
+% ------------------------------------------------------------------
+\matrix (backendboxes) [
+  matrix,
+  anchor=west,
+  row sep=2.4mm,
+  inner sep=0pt
+] at ([xshift=2.5mm]engine.east |- inputgroup.center) {
+
+  \node[selected] (out) {%
+    \textbf{Analytical result}\\[-0.2pt]
+    \mbox{
+      modeled \(S^{*}\); selected \(\tvec^{*},\mathbf{b}^{*}\)
+    }};
+  \\
+
+  \node[backend] (gen) {%
+    \textbf{Backend compiler}\\[-0.2pt]
+    preserve the fixed schedule\\[-0.3pt]
+    apply the selected tile/block parameters\\[-0.3pt]
+    invoke existing lowering and emit GPU code};
+  \\
+};
+
+\begin{scope}[on background layer]
+  \node[
+    fit=(out)(gen),
+    inner sep=0pt
+  ] (backendgroup) {};
+\end{scope}
+
+% ------------------------------------------------------------------
+% Section titles
+% ------------------------------------------------------------------
+\coordinate (titleline)
+  at ([yshift=4.2mm]engine.north);
+
+\node[
+  title,
+  anchor=base,
+  text=color4!48!black
+]
+  at (inputgroup.center |- titleline)
+  {External compiler / target inputs};
+
+\node[
+  title,
+  anchor=base,
+  text=color1!78!black
+]
+  at (engine.center |- titleline)
+  {\name analytical engine
+   \quad (for each \(S\in\Sigma\))};
+
+\node[
+  title,
+  anchor=base,
+  text=color3!52!black
+]
+  at (backendgroup.center |- titleline)
+  {Compiler-specific adapter and backend};
+
+% ------------------------------------------------------------------
+% Input arrows
+% ------------------------------------------------------------------
+\coordinate (schedexit)
+  at (sched.east |- cls.west);
+
+\draw[arr, rounded corners=1.2pt]
+  (schedexit)
+  -- ++(1.2mm,0)
+  |- (cls.west);
+
+\draw[arr, rounded corners=1.2pt]
+  (schedexit)
+  -- ++(1.2mm,0)
+  -- ++(0,4.6mm)
+  -| (scen.north);
+
+\coordinate (profilelane)
+  at ([yshift=0.7mm]engine.south);
+
+\coordinate (profdown)
+  at (prof.south |- profilelane);
+
+\coordinate (profilefeas)
+  at (feas.south |- profilelane);
+
+\coordinate (profilecost)
+  at (cost.south |- profilelane);
+
+\draw[dline, rounded corners=1.0pt]
+  (prof.south)
+  -- (profdown)
+  -- (profilecost);
+
+\draw[darr]
+  (profilefeas)
+  -- (feas.south);
+
+\draw[darr, preaction={draw=white,line width=1.8pt}]
+  (profilecost)
+  -- (cost.south);
+
+% ------------------------------------------------------------------
+% Backend arrows
+% ------------------------------------------------------------------
+\coordinate (backendinnerlower)
+  at ([xshift=-1.0mm]engine.east |- solve.east);
+
+\coordinate (backendinnerupper)
+  at ([xshift=-1.0mm]engine.east |- out.west);
+
+\draw[arr, rounded corners=1.2pt]
+  (solve.east)
+  -- (backendinnerlower)
+  -- (backendinnerupper)
+  -- (out.west);
+
+\draw[arr]
+  (out.south)
+  -- (gen.north);
+
+\end{tikzpicture}
+\end{adjustbox}
+
+\caption{
+Workflow of \name{}. Schedule metadata and a target profile feed the
+\name{} analytical engine, which solves the per-scenario problem of
+\autoref{sec:model} and selects tile and block parameters. A compiler-specific
+adapter then applies the selected parameters to the fixed schedule and
+invokes the backend's existing lowering and GPU code generation.
+}
+
+\Description{
+Compact workflow diagram with side-by-side target-profile and schedule
+inputs, a two-row \name analytical engine, and a compiler-specific
+backend that consumes selected tile and block parameters after the model
+evaluates abstract placement scenarios.
+}
+
+\label{fig:mosaic-pipeline}
+\end{figure*}
+
+\begingroup
+\setlength{\topsep}{2pt plus 1pt minus 1pt}
+\setlength{\partopsep}{0pt}
+\setlength{\itemsep}{1pt plus 0.5pt minus 0.5pt}
+\setlength{\parsep}{0pt}
+\begin{itemize}[
+  leftmargin=1.4em,
+  labelsep=0.45em,
+  topsep=2pt plus 1pt minus 1pt,
+  partopsep=0pt,
+  itemsep=1pt plus 0.5pt minus 0.5pt,
+  parsep=0pt
+]
+  \item \textbf{Transformed-program acquisition}. \name starts from a program whose schedule and mapping structure are already fixed by an external compiler; the schedule tree or trace stays read-only, and \name assigns only the tile sizes and thread-block dimensions this structure exposes.
+  \item \textbf{Metadata extraction and target profiling}. \name extracts metadata for loops, accesses, operations, coalescing, and placement candidates, then combines it with once-per-architecture target limits and effective costs, yielding the finite execution space problem instantiated in \autoref{sec:model}.
+  \item \textbf{Analytical execution-space solving}. \name enumerates abstract shared-memory placement scenarios for read-only operands and, for each scenario, solves over tile sizes and thread-block dimensions; feasibility is checked by hardware limits and the conservative register filter, and ranking uses a quantized primary objective with a relaxed-cost tie-break over the Stage-1 optimal discrete configurations.
+  \item \textbf{Backend realization}. \name returns the selected tile sizes and thread-block dimensions; the best modeled placement scenario remains analytical state rather than being emitted as a shared-memory directive. The compiler-specific adapter passes the supported parameters to PPCG or TVM, whose existing lowering independently determines and realizes any shared-memory staging, cooperative loads, and barriers before emitting GPU code; \name acts only as an external parameter oracle.
+\end{itemize}
+\endgroup
+
+For each modeled placement scenario \(S\), let \(F^*(S)\), \(\Phi^*(S)\), and \((\tvec_S^*,\mathbf{b}_S^*)\) denote the scores and configuration returned by the inner two-stage solve over \(\mathcal{V}(S)\), formally defined in \autoref{sec:two-stage-solver}.
+\begin{equation}
+\begin{aligned}
+\mathcal{S}_1
+&=\mathop{\arg\min}_{S\in\Sigma} F^*(S),\\
+S^*
+&\in \mathop{\arg\min}_{S\in\mathcal{S}_1} \Phi^*(S),\\
+(\tvec^*,\mathbf{b}^*)
+&=(\tvec_{S^*}^*,\mathbf{b}_{S^*}^*).
+\end{aligned}
+\label{eq:two-level}
+\end{equation}
+Here \(S\) ranges over the power set \(\Sigma=2^{\Sigma_{\mathit{cand}}}\) of read-only placement candidates. For each \(S\), the inner solve ranges over the placement-dependent feasible domain \(\mathcal{V}(S)\): Stage 1 produces \(F^*(S)\) and its tied optimal set, and Stage 2 uses \(\Phi^*(S)\) only to resolve those ties. Across modeled placement scenarios, the primary scores are compared first and the secondary scores only on a tie. \autoref{sec:two-stage-solver} gives the complete definitions. %\autoref{sec:metadata} describes the metadata and target profile that instantiate \autoref{eq:two-level}; \autoref{sec:model} formalizes the cost model, constraints, and solver.
+
+For the running GEMM example, \name identifies the two parallel loops and the single reduction loop, treats \(A\) and \(B\) as read-only operands and \(C\) as a register accumulator, enumerates the induced placement scenarios, solves for tile and block choices, and returns those selected parameters as backend configuration.
+
+\name is realized as a compiler-agnostic analytical core with compiler-specific metadata adapters; it runs the analytical selection of \autoref{sec:model} outside the compiler and returns the chosen tile and block configuration as code generation parameters. It treats the schedule as an abstraction layer, extracting only the loop flags, affine access maps, tile footprints, read/write polarities, and operation counts the model requires (\autoref{sec:compile-time-metadata}); the same engine drives both backends, reading schedule trees from PPCG and schedule traces from TVM. For every placement scenario it assembles the Stage-1 MILP, solved with PuLP~\cite{pulp} and the CBC backend~\cite{cbc}, and applies the relaxed-cost tie-break only to the Stage-1 optimal discrete configurations; modeled scenarios are ranked by the primary score first and the secondary score only on a tie. Capacity parameters come from device properties, and effective constants come from the microbenchmarks of \autoref{sec:gpu-target-profiling}; the backend independently determines concrete shared-memory staging through its own lowering mechanism.

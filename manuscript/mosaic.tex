@@ -1,0 +1,303 @@
+%%
+%% Mosaic paper repository main file.
+%%
+% TACO submission version.  ACM journals use the acmsmall trim; `review'
+% adds the line numbers reviewers are asked to cite, and `anonymous'
+% suppresses author names, affiliations, e-mails, and ORCIDs.
+% For the camera-ready version, drop `review,anonymous' and restore the
+% author block below.
+\documentclass[acmsmall,review,anonymous,screen]{acmart}
+
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+% ACM is fully open access; TACO articles are published under CC-BY.
+\setcopyright{cc}
+\setcctype{by}
+\copyrightyear{2026}
+\acmYear{2026}
+\acmJournal{TACO}
+% Volume/number/article/month and the DOI are assigned by ACM at
+% acceptance; they stay as placeholders in the submitted version.
+\acmVolume{0}
+\acmNumber{0}
+\acmArticle{0}
+\acmMonth{0}
+\acmDOI{10.1145/nnnnnnn.nnnnnnn}
+% Paste the submission ID issued by Manuscript Central here; it is then
+% printed on every page under the `review' option.
+\acmSubmissionID{}
+
+% User-defined packages.
+\usepackage{xspace}
+\usepackage{graphicx}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.17}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{multirow}
+\usepackage{makecell}
+\usepackage{adjustbox}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{placeins}
+\usepackage{enumitem}
+\usepgfplotslibrary{statistics, groupplots}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds, positioning, calc, matrix, backgrounds}
+\definecolor{primaryblue}{RGB}{70,130,180}
+\definecolor{accentorange}{RGB}{255,140,0}
+\definecolor{deepgreen}{RGB}{34,139,34}
+\definecolor{deepskyblue}{RGB}{46,84,161}
+\definecolor{mypurple}{RGB}{112, 48, 160}
+\definecolor{lightblue}{RGB}{173, 216, 230}
+\definecolor{lightpurple}{RGB}{221, 160, 221}
+\definecolor{lightpink}{RGB}{255, 182, 193}
+\definecolor{color1}{RGB}{199,56,73}
+\definecolor{color2}{RGB}{248,189,211}
+\definecolor{color3}{RGB}{191,170,210}
+\definecolor{color4}{RGB}{147,197,235}
+\definecolor{color5}{RGB}{157,159,163}
+\newif\ifrevmarkup
+\revmarkuptrue
+\ifdefined\revclean\revmarkupfalse\fi
+\definecolor{revO}{HTML}{7030A0}
+\DeclareRobustCommand{\revO}[1]{\ifrevmarkup{\color{revO}\hypersetup{allcolors=revO}#1}\else#1\fi}
+\newenvironment{revOblock}{\ifrevmarkup\color{revO}\hypersetup{allcolors=revO}\fi}{}
+\definecolor{revRone}{HTML}{0070C0}
+\DeclareRobustCommand{\revRone}[1]{\ifrevmarkup{\color{revRone}\hypersetup{allcolors=revRone}#1}\else#1\fi}
+\newenvironment{revRoneblock}{\ifrevmarkup\color{revRone}\hypersetup{allcolors=revRone}\fi}{}
+\definecolor{revRtwo}{HTML}{C00000}
+\DeclareRobustCommand{\revRtwo}[1]{\ifrevmarkup{\color{revRtwo}\hypersetup{allcolors=revRtwo}#1}\else#1\fi}
+\newenvironment{revRtwoblock}{\ifrevmarkup\color{revRtwo}\hypersetup{allcolors=revRtwo}\fi}{}
+\definecolor{revRthree}{HTML}{00B050}
+\DeclareRobustCommand{\revRthree}[1]{\ifrevmarkup{\color{revRthree}\hypersetup{allcolors=revRthree}#1}\else#1\fi}
+\newenvironment{revRthreeblock}{\ifrevmarkup\color{revRthree}\hypersetup{allcolors=revRthree}\fi}{}
+\ifrevmarkup\else
+  \AtBeginDocument{%
+    \hypersetup{hidelinks}%
+    \tikzset{every text node part/.append style={text=black}}}
+  \makeatletter
+  \patchcmd{\ACM@mk@linecount}{\color{red}}{\color{black}}{}{}
+  \patchcmd{\ACM@mk@linecount}{\color{red}}{\color{black}}{}{}
+  \makeatother
+\fi
+\makeatletter
+\pdfstringdefDisableCommands{%
+  \let\revO\@firstofone\let\revRone\@firstofone
+  \let\revRtwo\@firstofone\let\revRthree\@firstofone}
+\makeatother
+
+
+\usepackage[utf8]{inputenc}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{wrapfig}
+% Apply the layout rhythm after acmart installs its document-level defaults.
+\AtBeginDocument{%
+  \setlength{\intextsep}{8pt plus 2pt minus 2pt}%
+  \setlength{\textfloatsep}{4pt plus 1pt minus 1pt}%
+  \setlength{\floatsep}{8pt plus 2pt minus 2pt}%
+  \setlength{\dbltextfloatsep}{8pt plus 2pt minus 2pt}%
+  \setlength{\dblfloatsep}{8pt plus 2pt minus 2pt}%
+  \setlength{\abovedisplayskip}{4.2pt plus 1pt}%
+  \setlength{\belowdisplayskip}{4.2pt plus 1pt}%
+  \setlength{\abovedisplayshortskip}{0pt plus 1pt}%
+  \setlength{\belowdisplayshortskip}{2.1pt plus 1pt}%
+  \setlength{\jot}{4pt}%
+}
+\usepackage{listings}
+\definecolor{darkgray}{rgb}{.3,.3,.3}
+\definecolor{darkred}{rgb}{.6,0,0}
+\definecolor{darkgreen}{rgb}{0,.6,0}
+\definecolor{darkblue}{rgb}{0,0,.6}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+\lstdefinestyle{patterncode}{
+  language=Python,
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\bfseries\color{black},
+  commentstyle=\itshape\color{gray!65},
+  stringstyle=\color{black},
+  showstringspaces=false,
+  breaklines=false,
+  frame=single,
+  framerule=0.4pt,
+  xleftmargin=6pt,
+  xrightmargin=6pt,
+  aboveskip=2pt,
+  belowskip=0pt,
+  escapeinside={(*@}{@*)},
+  morekeywords={zeros,conv,split,cat,sigmoid,tanh},
+}
+
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
+
+\def\sectionautorefname{\S}
+\def\subsectionautorefname{\S}
+\def\subsubsectionautorefname{\S}
+\def\equationautorefname{Eq.}
+\def\figureautorefname{Fig.}
+\def\tableautorefname{Tab.}
+\def\algorithmautorefname{Alg.}
+\newcommand{\definitionautorefname}{Def.}
+\newcommand{\name}{{Mosaic}\xspace}
+\newcommand{\gpu}{GPU\xspace}
+\newcommand{\gpus}{GPUs\xspace}
+\newcommand{\sm}{SM\xspace}
+\newcommand{\sms}{SMs\xspace}
+\newcommand{\circled}[1]{\textup{\scriptsize(#1)}}
+\newcommand{\tile}{t}
+\newcommand{\tvec}{\mathbf{t}}
+\newcommand{\rblk}{r}
+\newcommand{\rvec}{\mathbf{r}}
+\newcommand{\work}{w}
+\newcommand{\placement}{\textsc{Placement}\xspace}
+\newcommand{\Solve}{\textsc{Solve}}
+\newcommand{\Rsm}{R_{\mathrm{SM}}}
+\newcommand{\Ssm}{S_{\mathrm{SM}}}
+\newcommand{\Sblock}{S_{\mathrm{block}}}
+\newcommand{\Bsm}{B_{\mathrm{SM}}}
+\newcommand{\Tsm}{T_{\mathrm{SM}}}
+\newcommand{\Nsm}{N_{\mathrm{SM}}}
+\newcommand{\Tmax}{T_{\max}}
+\newcommand{\Wwarp}{w_{\mathrm{warp}}}
+\newcommand{\gcoal}{g_{\mathrm{coal}}}
+\newcommand{\Lg}{\Lambda_{\mathrm g}}
+\newcommand{\Ls}{\Lambda_{\mathrm s}}
+\newcommand{\Lr}{\Lambda_{\mathrm r}}
+\newcommand{\Lf}{\Lambda_{\mathrm f}}
+\newcommand{\Ly}{\Lambda_{\mathrm y}}
+\newcommand{\Lglobal}{\Lg}
+\newcommand{\Lsmem}{\Ls}
+\newcommand{\Lreg}{\Lr}
+\newcommand{\Lfma}{\Lf}
+\newcommand{\Lsync}{\Ly}
+\newcommand{\Czero}{C_0}
+\newcommand{\Cinit}{C_{\mathrm{init}}}
+\newcommand{\cfma}{c_{\mathrm{fma}}}
+\newcommand{\creg}{c_{\mathrm{reg}}}
+\newcommand{\Sigmacand}{\Sigma_{\mathrm{cand}}}
+
+% TACO requires an unnumbered footnote on the first page stating the
+% relationship of the submission to any prior conference paper.  acmart's
+% \titlenote and \thanks both replace their argument with a placeholder under
+% the `anonymous' option, so the note is emitted directly instead; it carries
+% no author-identifying information and is therefore safe to keep anonymous.
+\makeatletter
+\newcommand{\firstpagefootnote}[1]{%
+  \begingroup
+  \renewcommand\thefootnote{}%
+  \renewcommand\@makefnmark{}%
+  \footnotetext{#1}%
+  \addtocounter{footnote}{-1}%
+  \endgroup}
+\makeatother
+
+% Suppress the page-1 copyright/permission footnote block for this
+% submission-stage draft: none of the CC-BY icon+license text, the copyright
+% line, the DOI, or the ACM permission-code/article line it prints are
+% assigned until acceptance, so showing them here would only display
+% placeholders. \setcopyright{cc}/\setcctype{by}/\acmDOI above still record
+% the intended camera-ready values; delete this redefinition (restoring
+% acmart's default \footnotetextcopyrightpermission) once ACM assigns them.
+\makeatletter
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\makeatother
+
+\begin{document}
+
+% Previous title read as a comparative claim against transformation scheduling
+% ("Beyond Schedule Search"), which contradicts the scope statement in
+% sec.intro.tex/sec.conclusion.tex: \name operates strictly after scheduling and
+% neither searches nor modifies it. Retitled to name the paper's own subject,
+% GPU execution space optimization, instead.
+% \title{\name: Unified Analytical Optimization of Architecture-Aware GPU Code Generation Beyond Schedule Search}
+\title[Analytical Optimization of Architecture-Aware GPU Code Generation]
+{Unified Analytical Optimization of Architecture-Aware GPU Execution Space}
+
+\author{Shihan Yuan}
+\email{yuanshihan516@hnu.edu.cn}
+\orcid{0009-0005-9508-1660}
+\author{Junhui Peng}
+\email{pengjh0111@hnu.edu.cn}
+\orcid{0009-0006-7218-1930}
+\author{Guanghui Song}
+\email{sheensong@hnu.edu.cn}
+\orcid{0009-0001-8089-1151}
+\author{Feng Wang}
+\email{wangfeng@hnu.edu.cn}
+\orcid{0009-0002-4009-6783}
+\author{Kenli Li}
+\email{lkl@hnu.edu.cn}
+\orcid{0000-0002-2635-7716}
+\author{Jie Zhao}
+\email{jiezhao@hnu.edu.cn}
+\orcid{0000-0003-2303-9736}
+\affiliation{%
+  \institution{Hunan University}
+  \city{Changsha}
+  \country{China}
+}
+
+
+\begin{abstract}
+Selecting tile sizes and thread-block dimensions is critical to the performance of compiler-generated GPU code, yet these choices interact with shared-memory use, register pressure, occupancy, and memory locality. Existing analytical selectors address narrower subsets of this execution space, while empirical methods incur repeated search costs.
+
+This paper presents \name, a unified analytical framework for GPU execution-space optimization on transformed programs whose schedule and mapping structure have been fixed upstream. \name selects tile and thread-block parameters while reasoning over abstract shared-memory placement scenarios using compiler-provided metadata and a once-per-architecture target profile. Its model combines a quantized wave objective, a shared-read-per-FMA ratio, and a conservative register-working-set filter, followed by a relaxed-cost tie-break among configurations tied at the primary optimum. The formulation also yields a closed-form balanced register-blocking condition for outer-product contractions.
+
+Across 25 PolyBench kernels on three NVIDIA GPUs, \name achieves geometric-mean speedups of $1.21$--$1.49\times$ over PPCG and measured latency ratios of $1.37$--$1.89\times$ relative to EATSS. On the RTX 4090, \name achieves $1.88\times$ over PPCG on deep learning operators and $4.22\times$ over PPCG on end-to-end workloads; on the evaluated end-to-end workloads, it achieves a $1.11\times$ geometric-mean speedup over TVM MetaSchedule. \name further reduces selection overhead by $12$--$14\times$ relative to EATSS and by $2$--$4$ orders of magnitude relative to measurement-driven autotuning.
+\end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10010520.10010521.10010528</concept_id>
+       <concept_desc>Computer systems organization~Parallel architectures</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10011007.10011006.10011008</concept_id>
+       <concept_desc>Software and its engineering~General programming languages</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10002950.10003624.10003625.10003630</concept_id>
+       <concept_desc>Mathematics of computing~Combinatorial optimization</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+ </ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Computer systems organization~Parallel architectures}
+\ccsdesc[300]{Software and its engineering~General programming languages}
+\ccsdesc[300]{Mathematics of computing~Combinatorial optimization}
+
+\keywords{GPU Code Generation, Execution Space Optimization, Analytical Model, Polyhedral Compilation}
+
+\maketitle
+
+% Mandatory TACO first-page footnote.  Replace with a citation of the prior
+% conference paper plus a statement of the >=30% new material if this ever
+% becomes an extension rather than a new paper.
+\firstpagefootnote{New Paper, Not an Extension of a Conference Paper.}
+
+\input{sec.intro}
+\input{sec.background}
+\input{sec.overview}
+\input{sec.metadata}
+\input{sec.model}
+\input{sec.eval}
+\input{sec.related}
+\input{sec.conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+% Appendix omitted.
+
+\end{document}
+\endinput

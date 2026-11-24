@@ -1,0 +1,697 @@
+% !TEX root =  mosaic.tex
+\section{Evaluation}
+\label{sec:eval}
+
+Our cross-generation PolyBench evaluation uses three generations of NVIDIA GPUs whose hardware and software platforms are summarized in \autoref{tab:platforms}. The architectural parameters required by the cost model, including memory capacities, execution limits, and the profiled \(\Lambda\)-family and \(c\) constants described in \autoref{sec:gpu-target-profiling} and used by \autoref{sec:cost}, are gathered once per GPU through the target description of \autoref{sec:overview} and reused across all kernels. \revRone{Table~\ref{tab:platforms} also lists the H800 (Hopper), on which we additionally evaluate all 25 kernels after regenerating only the target profile (\autoref{subsec:polybench}).}
+
+\begin{table}[tbp]
+  \centering
+  \caption{Experimental platforms. All experiments use CUDA's default \SI{48}{KiB} per-block shared-memory limit without opt-in.}
+  \label{tab:platforms}
+  \scriptsize
+  \begin{adjustbox}{max width=\linewidth}
+  \begin{tabular}{lcccc}
+    \toprule
+     & RTX 4090 & A100 & V100 & \revRone{H800} \\
+    \midrule
+    Architecture & Ada & Ampere & Volta & \revRone{Hopper} \\
+    SM count & 128 & 108 & 80 & \revRone{132} \\
+    L1 / L2 cache & \SI{128}{KiB} / \SI{72}{MiB} & \SI{192}{KiB} / \SI{40}{MiB} & \SI{128}{KiB} / \SI{6}{MiB} & \revRone{\SI{256}{KiB} / \SI{50}{MiB}} \\
+    Shared mem.\ per block / SM & \SI{48}{KiB} / \SI{100}{KiB} & \SI{48}{KiB} / \SI{164}{KiB} & \SI{48}{KiB} / \SI{96}{KiB} & \revRone{\SI{48}{KiB} / \SI{228}{KiB}} \\
+    Registers per SM & 65536 & 65536 & 65536 & \revRone{65536} \\
+    Global memory & \SI{48}{GiB} & \SI{80}{GiB} & \SI{32}{GiB} & \revRone{\SI{80}{GiB}} \\
+    OS & Ubuntu 22.04 & Ubuntu 22.04 & Ubuntu 22.04 & \revRone{Ubuntu 22.04} \\
+    CUDA / Compiler & 12.2 / NVCC 12.2.91 & 12.2 / NVCC 12.2.91 & 12.2 / NVCC 12.2.91 & \revRone{12.8 / NVCC 12.8.93} \\
+    \bottomrule
+  \end{tabular}
+  \end{adjustbox}
+\end{table}
+
+All PolyBench/C 4.2.1~\cite{polybench} measurements, in \autoref{tab:benchmark} and in the bounded PPCG sweep of \autoref{subsec:bounded-ppcg-sweep}, use the official \texttt{EXTRALARGE} problem sizes and FP64 precision. The precision follows each backend's own convention rather than being imposed by \name: the PPCG path is FP64, matching the PolyBench/C and PolyNN~\cite{polynn} sources, while the TVM path is FP32, matching MetaSchedule's default tensor type; \autoref{tab:vendor-comparison} reports both FP64 and FP32/TF32 for the same GEMM shapes. \revRthree{Shared-memory footprints and traffic are measured in bytes}. The element width enters only through the array element size of \autoref{sec:compile-time-metadata}, so the same formulation drives both regimes without retuning; the FP64 gains over PPCG and the FP32 gains over MetaSchedule reported below are evidence that this holds in practice. \name selects configurations for a given precision and does not change it. We verified output correctness for every measured configuration.
+
+The same timing protocol is used for PolyBench, the bounded PPCG sweep, deep-learning operators, vendor comparisons, and end-to-end workloads. Each configuration is timed after 10 warm-up runs followed by 100 timed runs using CUDA events, and we report the median of the 100 timed runs as execution time. The median relative standard deviation across the successfully measured sweep configurations is \(0.30\%\).
+
+Solver time includes analytical model construction and solving across all modeled placement scenarios, but excludes backend code generation, GPU kernel compilation, and runtime measurement. This is the quantity reported in \autoref{tab:benchmark} and used for the selection-overhead comparisons below.
+
+We compare against PPCG's heuristic, the energy-aware EATSS analytical selector~\cite{eatss}, and the TVM MetaSchedule autotuner~\cite{metaschedule}. EATSS jointly optimizes latency and energy rather than latency alone; the reported latency comparison therefore reflects a different optimization objective. \revO{EATSS also fixes each thread-block extent to the corresponding outer tile size ($r_d = 1$), so the comparison additionally reflects \name's independent choice of thread-block dimensions (\autoref{sec:abstraction})}\revRthree{; the PPCG default, the bounded sweep, and measured regret (\autoref{subsec:bounded-ppcg-sweep}) serve as latency-only references.}
+
+The selected tile and thread-block components of \name's configuration are passed to PPCG exclusively through the \texttt{--sizes} option; no other compilation flag beyond PPCG's default CUDA target settings is used. The call takes the general form
+\begin{quote}
+\ttfamily\footnotesize
+ppcg --target=cuda --sizes="\{kernel[id]->tile[$t_1$,...,$t_n$]; kernel[id]->block[$b_1$,...,$b_m$]\}" input.c -o output.cu
+\end{quote}
+where the tile and block values are exactly the \(t_*\) and \(b_*\) returned by the solver. The placement scheme \(S\) remains an abstract scenario in \name's model; PPCG independently determines concrete shared-memory staging through its existing promotion and lowering mechanism rather than through directives emitted by \name. TVM analogously determines concrete staging through its own lowering mechanism. \revO{On the TVM path, $\tvec^*$ and $\mathbf{b}^*$ replace the split factors and thread bindings in the TIR printed from the schedule selected by MetaSchedule. Because the PPCG default, EATSS, and \name share the same PPCG code generator, the differences in Table~\ref{tab:benchmark} reflect only the selected parameters.}
+
+\paragraph{Register and occupancy validation.}
+We validate the resource model on representative GEMM, ATAX, and Jacobi-2D programs by exhaustively compiling all 11,240 candidates that pass C4. Only 14 spill registers (\(0.1246\%\)), and all five kernels in the final \name selections are spill-free. Predicted resident blocks per SM exactly match the CUDA Occupancy API for four of the five; the sole mismatch, ATAX, predicts three blocks versus the API's two, because register-allocation granularity rounds PTXAS's reported 42 registers per thread up to an effective 48, which does not change the wave count. C4 remains a conservative lower-bound filter, not a predictor of backend register allocation. \revRthree{All three programs use FP64, for which $\hat R$ is looser because each data value occupies two slots. Counting FP64 data terms as two slots keeps all five selections feasible, and thus optimal, while excluding all 14 spilling candidates. Applying C4 to the measured configurations shows that it rarely excludes faster ones: of the 2,232 GEMM configurations in Fig.~\ref{fig:motivation-landscape}, 941 violate C4, and only 2 of them, including the measured optimum, are faster than the best C4-feasible configuration, which is within 0.80\% of the optimum; none of the 493 C4-violating Jacobi-2D configurations in the bounded sweep (of 739) beats \name's selection; and all 784 ATAX configurations satisfy C4.}
+
+\revRtwo{\textit{Modeled placement versus backend staging.} For the 25 H800 programs, we compared $S^*$ with the arrays PPCG declares in shared memory, counting unsolved auxiliary kernels and the fixed uncoalesced-write staging of Table~\ref{tab:placement-rules} as consistent. Staging agrees in 18 programs. In the other 7 (bicg, doitgen, gramschmidt, mvt, symm, trisolv, and trmm), some arrays modeled in shared memory are read from global memory, because PPCG promotes reference groups by its own reuse and coalescing criteria within its shared-memory budget; \name still achieves a 1.20$\times$ geometric-mean speedup over PPCG on these programs.}
+
+\paragraph{Profile sensitivity.}
+For GEMM, ATAX, and Jacobi-2D, we perturb the global-memory, shared-memory, register, and FMA cost constants one at a time by \(-20\%\), \(-10\%\), \(+10\%\), and \(+20\%\), giving 48 re-solves; all 48 select exactly the same tile sizes, thread-block dimensions, and modeled placement scenario as the original profile. The profile is target-specific rather than kernel- or shape-specific, so it is reused across workloads on the same GPU and regenerated only when the GPU, compute capability, or execution environment changes enough to affect the effective costs.
+
+\subsection{Performance on PolyBench Kernels}
+\label{subsec:polybench}
+
+% polybench table
+\begin{table}[tbp]
+\centering
+\caption{Execution time, solver time, and speedups on PolyBench benchmarks.}
+\label{tab:benchmark}
+\scriptsize
+\setlength{\tabcolsep}{2.4pt}
+\renewcommand{\arraystretch}{0.86}
+\adjustbox{max width=\textwidth}{
+\begin{tabular}{lccccccccccccccc}
+\toprule
+\multirow{3}{*}{Benchmark} & \multicolumn{5}{c}{RTX 4090} & \multicolumn{5}{c}{A100} & \multicolumn{5}{c}{V100} \\
+\cmidrule(lr){2-6} \cmidrule(lr){7-11} \cmidrule(lr){12-16}
+& \multicolumn{2}{c}{\name} & \multicolumn{1}{c}{PPCG} & \multicolumn{2}{c}{EATSS}
+& \multicolumn{2}{c}{\name} & \multicolumn{1}{c}{PPCG} & \multicolumn{2}{c}{EATSS}
+& \multicolumn{2}{c}{\name} & \multicolumn{1}{c}{PPCG} & \multicolumn{2}{c}{EATSS} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-4} \cmidrule(lr){5-6}
+\cmidrule(lr){7-8} \cmidrule(lr){9-9} \cmidrule(lr){10-11}
+\cmidrule(lr){12-13} \cmidrule(lr){14-14} \cmidrule(lr){15-16}
+& Exec. (ms) & Solver (s) & Exec. Spd. & Exec. Spd. & Solver Spd.
+& Exec. (ms) & Solver (s) & Exec. Spd. & Exec. Spd. & Solver Spd.
+& Exec. (ms) & Solver (s) & Exec. Spd. & Exec. Spd. & Solver Spd. \\
+\midrule
+correlation & 16.578 & 0.216 & \(1.07\times\) & \(1.56\times\) & \(6.42\times\) & 10.383 & 0.362 & \(1.05\times\) & \(4.55\times\) & \(4.86\times\) & 10.366 & 0.464 & \(1.05\times\) & \(3.52\times\) & \(3.09\times\) \\
+covariance & 17.247 & 0.213 & \(2.11\times\) & \(2.54\times\) & \(6.17\times\) & 11.520 & 0.143 & \(3.62\times\) & \(4.35\times\) & \(11.5\times\) & 41.364 & 0.146 & \(3.30\times\) & \(1.72\times\) & \(9.72\times\) \\
+gemm & 22.704 & 0.242 & \(1.39\times\) & \(1.08\times\) & \(5.71\times\) & 7.8790 & 0.245 & \(1.23\times\) & \(9.52\times\) & \(6.45\times\) & 14.269 & 0.243 & \(2.01\times\) & \(4.24\times\) & \(6.10\times\) \\
+gemver & 0.7540 & 0.050 & \(1.01\times\) & \(1.03\times\) & \(34.5\times\) & 1.1800 & 0.050 & \(1.04\times\) & \(1.17\times\) & \(35.3\times\) & 1.1980 & 0.050 & \(1.04\times\) & \(1.50\times\) & \(34.4\times\) \\
+gesummv & 0.5570 & 0.006 & \(1.00\times\) & \(1.19\times\) & \(284\times\) & 0.5410 & 0.011 & \(1.71\times\) & \(0.90\times\) & \(141\times\) & 0.5430 & 0.011 & \(1.50\times\) & \(1.02\times\) & \(158\times\) \\
+symm & 22.350 & 0.030 & \(2.27\times\) & \(2.19\times\) & \(52.1\times\) & 18.954 & 0.162 & \(6.05\times\) & \(2.88\times\) & \(9.37\times\) & 63.452 & 0.164 & \(6.02\times\) & \(1.64\times\) & \(9.40\times\) \\
+syr2k & 58.963 & 3.324 & \(1.36\times\) & \(1.35\times\) & \(0.45\times\) & 49.926 & 0.127 & \(1.65\times\) & \(1.91\times\) & \(11.9\times\) & 101.02 & 0.080 & \(2.70\times\) & \(1.30\times\) & \(19.8\times\) \\
+syrk & 19.681 & 0.069 & \(1.12\times\) & \(1.27\times\) & \(18.6\times\) & 8.3080 & 0.064 & \(5.58\times\) & \(5.56\times\) & \(13.4\times\) & 41.736 & 0.061 & \(3.67\times\) & \(1.77\times\) & \(21.4\times\) \\
+trmm & 136.68 & 0.099 & \(1.03\times\) & \(2.51\times\) & \(17.4\times\) & 139.91 & 0.083 & \(0.93\times\) & \(2.69\times\) & \(18.8\times\) & 331.15 & 0.084 & \(1.11\times\) & \(1.90\times\) & \(20.8\times\) \\
+2mm & 22.380 & 0.266 & \(1.31\times\) & \(1.23\times\) & \(5.27\times\) & 7.7950 & 0.260 & \(1.50\times\) & \(4.07\times\) & \(7.11\times\) & 24.181 & 0.265 & \(1.32\times\) & \(1.79\times\) & \(5.60\times\) \\
+3mm & 32.569 & 0.431 & \(1.09\times\) & \(1.31\times\) & \(3.37\times\) & 15.573 & 0.442 & \(1.26\times\) & \(2.38\times\) & \(3.61\times\) & 41.091 & 0.426 & \(1.23\times\) & \(1.26\times\) & \(3.54\times\) \\
+atax & 0.1920 & 0.077 & \(1.21\times\) & \(1.14\times\) & \(22.2\times\) & 0.3730 & 0.061 & \(1.51\times\) & \(0.83\times\) & \(31.7\times\) & 0.3720 & 0.061 & \(1.54\times\) & \(1.46\times\) & \(28.6\times\) \\
+bicg & 0.1920 & 0.021 & \(1.16\times\) & \(1.09\times\) & \(84.7\times\) & 0.3740 & 0.066 & \(1.49\times\) & \(0.84\times\) & \(25.5\times\) & 0.3790 & 0.022 & \(1.44\times\) & \(1.30\times\) & \(81.2\times\) \\
+doitgen & 702.24 & 0.001 & \(1.01\times\) & -- & -- & 828.13 & 0.043 & \(1.17\times\) & -- & -- & 689.50 & 0.022 & \(1.61\times\) & -- & -- \\
+mvt & 0.5290 & 0.019 & \(1.00\times\) & \(1.92\times\) & \(84.5\times\) & 0.9420 & 0.010 & \(0.98\times\) & \(1.21\times\) & \(181\times\) & 0.9520 & 0.009 & \(0.98\times\) & \(1.16\times\) & \(186\times\) \\
+cholesky & 140.19 & 0.090 & \(1.14\times\) & \(1.53\times\) & \(18.6\times\) & 191.94 & 0.128 & \(1.25\times\) & \(1.81\times\) & \(13.1\times\) & 356.29 & 0.116 & \(1.07\times\) & \(1.65\times\) & \(14.8\times\) \\
+gramschmidt & 685.11 & 0.077 & \(1.14\times\) & \(1.26\times\) & \(19.9\times\) & 1136.7 & 0.092 & \(1.11\times\) & \(1.09\times\) & \(17.7\times\) & 1398.8 & 0.144 & \(1.11\times\) & \(1.13\times\) & \(10.5\times\) \\
+lu & 330.18 & 0.215 & \(1.31\times\) & \(1.00\times\) & \(7.98\times\) & 321.98 & 0.222 & \(1.90\times\) & \(1.00\times\) & \(6.97\times\) & 638.70 & 0.221 & \(1.44\times\) & \(1.04\times\) & \(7.59\times\) \\
+trisolv & 9.9610 & 0.019 & \(1.00\times\) & \(1.00\times\) & \(67.2\times\) & 16.099 & 0.019 & \(1.00\times\) & \(1.00\times\) & \(79.3\times\) & 14.542 & 0.019 & \(1.00\times\) & \(1.00\times\) & \(66.1\times\) \\
+adi & 4090.7 & 0.580 & \(1.51\times\) & \(1.00\times\) & \(2.68\times\) & 3406.3 & 0.574 & \(1.40\times\) & \(1.01\times\) & \(3.28\times\) & 3126.2 & 0.572 & \(1.33\times\) & \(1.01\times\) & \(2.77\times\) \\
+fdtd-2d & 452.12 & 0.652 & \(1.03\times\) & \(1.57\times\) & \(2.34\times\) & 301.55 & 0.663 & \(1.06\times\) & \(2.30\times\) & \(2.75\times\) & 585.86 & 0.563 & \(1.02\times\) & \(1.59\times\) & \(2.87\times\) \\
+heat-3d & 881.13 & 1.129 & \(1.58\times\) & -- & -- & 662.45 & 1.158 & \(1.10\times\) & -- & -- & 172.49 & 1.105 & \(1.66\times\) & -- & -- \\
+jacobi-1d & 2.6740 & 0.078 & \(1.00\times\) & -- & -- & 4.1800 & 0.079 & \(1.02\times\) & -- & -- & 3.3060 & 0.079 & \(1.06\times\) & -- & -- \\
+jacobi-2d & 266.16 & 0.312 & \(1.00\times\) & \(1.17\times\) & \(5.14\times\) & 178.16 & 0.311 & \(1.01\times\) & \(1.35\times\) & \(5.56\times\) & 422.13 & 0.312 & \(1.00\times\) & \(2.02\times\) & \(4.98\times\) \\
+seidel-2d & 757.94 & 0.270 & \(1.27\times\) & \(1.51\times\) & \(5.63\times\) & 935.38 & 0.241 & \(1.01\times\) & \(1.41\times\) & \(7.51\times\) & 1726.5 & 0.244 & \(1.19\times\) & \(1.79\times\) & \(6.53\times\) \\
+\midrule
+\textbf{geomean} & 346.79 & 0.34 & \(\mathbf{1.21\times}\) & \(\mathbf{1.37\times}\) & \(\mathbf{12.6\times}\) & 330.26 & 0.22 & \(\mathbf{1.44\times}\) & \(\mathbf{1.89\times}\) & \(\mathbf{13.6\times}\) & 392.25 & 0.22 & \(\mathbf{1.49\times}\) & \(\mathbf{1.55\times}\) & \(\mathbf{13.9\times}\) \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+We first evaluate \name on twenty-five PolyBench kernels~\cite{polybench} spanning reductions, contractions, and stencils: the union of kernels suitable for CUDA code generation~\cite{ppcg} and those evaluated by EATSS, allowing comparison against both on all three GPUs. \autoref{tab:benchmark} reports, per platform, \name's execution and solver times, its speedups over PPCG and EATSS, and the reduction in selection overhead relative to EATSS; execution times are medians, speedup aggregates are geometric means, and solver-time aggregates are arithmetic means. \name achieves geometric-mean speedups of $1.21\times$, $1.44\times$, and $1.49\times$ over PPCG, and measured latency ratios of $1.37\times$, $1.89\times$, and $1.55\times$ relative to EATSS, on the RTX 4090, A100, and V100, respectively. These gains trace to the coupled loop of \autoref{sec:bg-challenges} resolved in one formulation: the quantized wave cost avoids occupancy-boundary cliffs, and the AM--GM balance maximizes reuse per register (\autoref{sec:cost}). The effect is largest on contraction-heavy kernels, where PPCG's fixed heuristic leaves register blocking unbalanced; on the A100, \name improves \texttt{symm} by $6.05\times$ and \texttt{syrk} by $5.58\times$ by recovering \(\rblk_i=\rblk_j=\sqrt{\work}\). The advantage holds as register and shared-memory budgets vary across GPU generations.
+
+\name is occasionally within about \(15\%\) of EATSS on the A100 for the small memory-bound kernels \texttt{atax}, \texttt{bicg}, and \texttt{gesummv}, consistent with \autoref{sec:kernel-specialization}: asymmetric reductions and memory-bound kernels gain less from balanced blocking, leaving the MILP less room to improve. \texttt{trmm} and \texttt{trisolv} have triangular, largely serial structure with limited parallel headroom, leaving relatively little room for execution-space improvement. In \autoref{tab:benchmark}, ``--'' marks EATSS failures on \texttt{doitgen}, \texttt{heat-3d}, and \texttt{jacobi-1d}.
+
+\revRone{On the H800 (Fig.~\ref{fig:h800}), \name achieves geometric-mean speedups of 1.25$\times$ over PPCG and 1.30$\times$ over EATSS, which fails on the same three kernels.}
+
+\begin{figure}[tbp]
+  \centering
+  \includegraphics{figures/h800.pdf}
+  \caption{\revRone{\name speedup over PPCG and EATSS on the H800.}}
+  \label{fig:h800}
+\end{figure}
+
+\subsection{Bounded PPCG Tile Sweep}
+\label{subsec:bounded-ppcg-sweep}
+
+To compare \name with an empirical tile search, we perform a deterministic bounded PPCG sweep containing 263--784 configurations per benchmark, sampled without regard to measured performance from three exhaustive classes: hardware-aligned powers of two, exact divisors of the problem size, and unaligned points. The sweep changes only tile sizes; PPCG continues to determine its block mapping and concrete shared-memory staging. Across the 25 benchmarks, we attempted 17,279 configurations and 15,960 compiled and executed successfully (92.37\%). Failures are dominated by CUDA resource-limit launch failures under PPCG's default block mapping, and failed points are excluded from the best-of-sweep result.
+
+\begin{figure}[!b]
+  \centering
+  \setlength{\abovecaptionskip}{3pt}
+  \begin{tikzpicture}[trim axis left,trim axis right]
+    \begin{axis}[
+      ybar,
+      width=0.86\linewidth,
+      height=1.0cm,
+      scale only axis,
+      bar width=7pt,
+      ymin=0.60,
+      ymax=1.31,
+      ytick={0.6,0.8,1.0,1.2},
+      clip=false,
+      ylabel={\(T_{\mathrm{sweep\text{-}best}} / T_{\mathrm{Mosaic}}\)},
+      symbolic x coords={correlation,covariance,gemm,gemver,gesummv,symm,syr2k,syrk,trmm,2mm,3mm,atax,bicg,doitgen,mvt,cholesky,gramschmidt,lu,trisolv,adi,fdtd-2d,heat-3d,jacobi-1d,jacobi-2d,seidel-2d,Geomean},
+      xtick=data,
+      xticklabels={corr.,cov.,gemm,gmvr.,gsum.,symm,syr2k,syrk,trmm,2mm,3mm,atax,bicg,doit.,mvt,chol.,gram.,lu,tris.,adi,fdtd,heat,jac-1d,jac-2d,seidel,\textbf{GMean}},
+      enlarge x limits=0.018,
+      xticklabel style={rotate=30,anchor=east,font=\tiny},
+      yticklabel style={font=\tiny},
+      ylabel style={font=\tiny},
+      ymajorgrids=true,
+      grid style=dashed,
+    ]
+      \addplot[fill=color1,draw=black] table[x=benchmark,y=speedup] {bounded_sweep_data.dat};
+      \draw[black,dashed,thick] (axis cs:correlation,1) -- (axis cs:Geomean,1);
+      \node[font=\tiny,rotate=90,anchor=west,
+            inner sep=0pt,outer sep=2pt]
+        at (axis cs:Geomean,0.972809917) {\textbf{0.973\(\boldsymbol{\times}\)}};
+    \end{axis}
+  \end{tikzpicture}
+  \caption{\name{} speedup over bounded-sweep best on the RTX 4090; values above one favor \name{}.}
+  \Description{Bar chart of bounded-sweep-best time divided by Mosaic time for 25 PolyBench benchmarks and their geometric mean. A dashed horizontal line marks parity at one, and the geometric mean is 0.973 times.}
+  \label{fig:bounded-ppcg-sweep}
+\end{figure}
+
+The sweep deliberately extends beyond \name's analytical candidate set by including unaligned and non-divisor tile sizes. Sweep-best therefore serves as an empirical reference over the tested PPCG tile space rather than as the optimum of \name's own discrete domain. For each benchmark, we compute the fraction of successfully measured sweep configurations slower than PPCG's default and report the average of these fractions across all 25 benchmarks.
+
+Across the 25 benchmarks, PPCG's default configuration outperforms 71.2\% of the successfully measured sweep configurations on average and exceeds the sweep median in 18 cases.
+
+The sweep-best configurations achieve a $1.245\times$ geometric-mean speedup over this baseline, and beat it on all 25 benchmarks. \autoref{fig:bounded-ppcg-sweep} compares \name directly with sweep-best. The plotted ratio is \(T_{\mathrm{sweep\text{-}best}} / T_{\mathrm{Mosaic}}\): values above one favor \name and values below one favor sweep-best. The geometric-mean ratio is $0.973\times$, with \name faster on 12 of the 25 benchmarks and sweep-best faster on the remaining 13. Thus, \name reaches comparable aggregate performance without the hundreds of compile-and-run trials required by the bounded search for each benchmark.
+
+\paragraph{Measured regret.}
+The bounded sweep above varies tile sizes while retaining PPCG's block
+mapping. We further evaluate how closely \name's analytical selection
+approaches the best measured configuration when tile sizes and thread-block
+dimensions are considered jointly. We define the measured regret as
+\(T_{\name}/T_{\mathrm{best}}-1\), where \(T_{\mathrm{best}}\) is the fastest
+configuration observed in the evaluated candidate space. For single-kernel
+workloads, we exhaustively search the full feasible tile-and-block
+configuration space to obtain the measured optimum; for multi-kernel
+workloads, we control Cartesian-product growth by retaining the top-8 or
+top-16 candidates per kernel according to analytical cost, limiting the
+resulting joint search space to at most 512 configurations.
+
+The measured regret is \(0.34\%\) for \texttt{trisolv}, \(20.59\%\) for
+\texttt{syrk}, \(8.10\%\) for \texttt{gemm}, approximately \(0\%\) for
+\texttt{atax}, and \(0.08\%\) for \texttt{fdtd-2d}, with a geometric mean
+of \(5.53\%\). The larger regret on \texttt{syrk} indicates
+a remaining mismatch in ranking block-shape and coalescing-sensitive
+configurations.
+
+\revRthree{Extending the analysis to covariance, mvt, trmm, and jacobi-2d yields regrets of 2.52\%, 2.91\%, 7.74\%, and 13.34\%, for a nine-kernel geometric mean of 5.98\%. For syrk, the measured-best configuration lies in $\mathcal{V}(S)$ but needs more waves, so the model ranks it lower; Nsight Compute shows similar achieved occupancy and under 1\% of peak DRAM throughput for both, but about 1/16 as many shared-memory read bank conflicts and fewer Tex Throttle stalls (25.99 vs. 35.82 cycles per instruction) for the measured best, effects outside the model. For jacobi-2d, the model counts each tile's halo (Eq.~\eqref{eq:stencil-halo}) but not L2 reuse of halos shared by adjacent tiles, a cache effect excluded in \autoref{sec:gpu-target-profiling}.}
+
+\subsection{Performance on Deep Learning Operators}
+\label{subsec:operators}
+
+\begin{wrapfigure}[13]{R}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=92pt,keepaspectratio]{figures/operator_bars.pdf}
+\caption{Performance of deep learning operators.}
+\Description{Bar chart comparing PPCG and \name speedups on CNN, LSTM, RNN, FNN, and embedding operators.}
+\label{fig:network-operators}
+\end{wrapfigure}
+
+The remaining experiments on deep learning operators, end-to-end workloads, and ablation are conducted on the RTX 4090; \autoref{subsec:polybench} provides the cross-architecture evaluation on PolyBench. We next evaluate \name on five deep learning operators: CNN, LSTM, and RNN from the PolyNN suite~\cite{polynn}, and FNN and Embedding extracted from the AlexNet~\cite{alexnet} and BERT~\cite{bert}, respectively. \autoref{fig:network-operators} reports the speedup. \name delivers large gains on CNN (\(5.73\times\)) and Embedding (\(3.85\times\)) and remains within \(4\%\) of PPCG on LSTM, RNN, and FNN, yielding a geometric-mean speedup of \(1.88\times\).
+
+These operators cover distinct regimes. CNN and FNN are contraction/GEMM-like and compute-intensive, where the \(\phi\) ratio of \autoref{sec:cost} most effectively trades locality against register pressure, but FNN is small and regular enough that the PPCG default already lands close to \name's configuration. LSTM is a memory-intensive recurrent operator whose performance is dominated more by data movement than arithmetic intensity, leaving less room for register-blocking trade-offs. Embedding is likewise data-movement dominated, but PPCG's default parameters leave substantial opportunity for \name's placement-aware and occupancy reasoning to improve the configuration under the fixed mapping.
+
+For a direct comparison with optimized reference libraries, \autoref{tab:vendor-comparison} reports the audited CUDA-event medians for five GEMM shapes and the CNN case, with relative performance defined as reference-library time divided by Mosaic time. The GEMM geometric-mean ratios are \(67.65\%\) for FP64 and \(24.93\%\) for FP32. The reference measurements use cuBLAS for GEMM and cuDNN for CNN; the FP32 cuBLAS path uses FP32 input/output with TF32 Tensor-Core computation, whereas Mosaic uses scalar FP32 FMA.
+
+\begin{table}[!t]
+\centering
+\caption{Mosaic and vendor execution time for GEMM and CNN. CNN shape
+(\(\dagger\)): \(N=64\), \(C=64\), \(H=W=100\), \(K=32\), \(R=S=3\), and
+\(P=Q=98\), with unit stride.}
+\label{tab:vendor-comparison}
+\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\renewcommand{\arraystretch}{1.04}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}llrrrrrr@{}}
+\toprule
+\multirow{2}{*}{Kernel} & \multirow{2}{*}{Shape} &
+  \multicolumn{3}{c}{FP64} &
+  \multicolumn{3}{c}{FP32 / TF32} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}
+& & Mosaic (ms) & Vendor (ms) & Perf. (\%)
+  & Mosaic (ms) & Vendor (ms) & Perf. (\%) \\
+\midrule
+\multirow{6}{*}{GEMM}
+& \(1024\times1024\times1024\) & 2.9062 & 1.9123 & 65.80 & 0.1421 & 0.0369 & 26.00 \\
+& \(2048\times2048\times2048\) & 22.119 & 15.244 & 68.92 & 0.9138 & 0.2284 & 24.99 \\
+& \(4096\times4096\times4096\) & 167.52 & 113.11 & 67.52 & 6.9988 & 1.7730 & 25.33 \\
+& \(4096\times1024\times4096\) & 42.559 & 30.406 & 71.44 & 1.8401 & 0.4491 & 24.40 \\
+& \(1024\times4096\times4096\) & 44.821 & 29.037 & 64.79 & 1.8609 & 0.4458 & 23.95 \\
+& Geometric mean & -- & -- & 67.65 & -- & -- & 24.93 \\
+\midrule
+CNN\(^{\dagger}\) & -- & 7.1729 & 7.4175 & 103.4 & 7.9247 & 4.9041 & 61.88 \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+\revO{On the RTX 4090, Tensor Cores accelerate TF32 but not FP64. In FP64, cuBLAS reaches 87\%--94\% of peak and the \name-selected PPCG kernels 57\%--64\%; the gap stems from library techniques such as multi-stage pipelining, vectorized accesses, and register prefetching, which lie outside tile and block selection. In FP32, the TF32 Tensor Core and FP32 CUDA-core peaks are both 82.6 TFLOPS, but each MMA instruction amortizes instruction and operand-fetch overhead over many multiply--adds; FP64 arithmetic hides this overhead in scalar kernels, whereas in FP32 it limits them to 18\%--24\% of peak. Most kernels in Table~\ref{tab:benchmark}, such as stencils, triangular solves, and matrix--vector reductions, cannot use Tensor Cores or have no vendor implementation, as is also the case for FP64 code on GPUs without FP64 Tensor Cores.}
+
+\revO{\textit{Comparison with TileMind.} Table~\ref{tab:tilemind} compares \name with TileMind's GPU path (\autoref{sec:related}) on five GEMM and five Conv2D shapes, using the same PPCG backend in FP64. \name is 1.19$\times$--1.35$\times$ faster on GEMM (geometric mean 1.26$\times$) and 1.22$\times$--10.21$\times$ faster on Conv2D (2.44$\times$). For the 24$\times$64$\times$16$\times$16$\times$16$\times$3$\times$3$\times$18$\times$18 convolution, the block PPCG derives from TileMind's tile holds a single warp, whereas \name selects 1,024 threads per block and PPCG stages both the input tile and the weights in shared memory.}
+
+\begin{table}[tbp]
+\caption{\revO{\name speedup over TileMind on the RTX 4090 (FP64).}}\label{tab:tilemind}
+\centering\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrlr@{}}\toprule
+GEMM ($M{\times}N{\times}K$) & Spd. & Conv2D ($N{\times}K{\times}C{\times}P{\times}Q{\times}R{\times}S{\times}H{\times}W$) & Spd. \\
+\midrule
+$1536{\times}1024{\times}768$ & 1.35$\times$ & $24{\times}64{\times}16{\times}16{\times}16{\times}3{\times}3{\times}18{\times}18$ & 10.21$\times$ \\
+$768{\times}768{\times}1536$ & 1.25$\times$ & $16{\times}64{\times}32{\times}14{\times}14{\times}3{\times}3{\times}16{\times}16$ & 2.61$\times$ \\
+$768{\times}768{\times}128$ & 1.25$\times$ & $16{\times}32{\times}64{\times}14{\times}14{\times}3{\times}3{\times}16{\times}16$ & 1.68$\times$ \\
+$384{\times}1536{\times}512$ & 1.25$\times$ & $16{\times}32{\times}32{\times}16{\times}16{\times}3{\times}3{\times}18{\times}18$ & 1.59$\times$ \\
+$1152{\times}1152{\times}1152$ & 1.19$\times$ & $4{\times}64{\times}16{\times}16{\times}16{\times}3{\times}3{\times}18{\times}18$ & 1.22$\times$ \\
+\midrule
+GMean & 1.26$\times$ & GMean & 2.44$\times$ \\
+\bottomrule\end{tabular}
+\end{table}
+
+To compare \name against search-based autotuning, we integrate it into TVM~\cite{tvm} and compare with MetaSchedule~\cite{metaschedule} across trial budgets. \autoref{fig:network-operator-curves} plots execution time and selection cost for six operators. \name's overhead is a single compile-time analytical solve: for each modeled placement scenario in \(\Sigma\) it assembles one Stage-1 MILP and applies a relaxed-cost tie-break over the Stage-1 optimal discrete configurations (\autoref{sec:solver}), incurred once without generating or running any kernel. MetaSchedule's overhead is instead a runtime measurement loop: every trial compiles a kernel with NVCC and times it on the GPU, so the tuning cost grows linearly with the trial budget and is repaid for each new shape or target. Our comparison targets tile/block sizes; even when MetaSchedule is restricted to this choice under a fixed schedule, its overhead stays the same order of magnitude, since the dominant cost is compiling and running each candidate. \revRthree{\name re-selects these sizes on the schedule found by MetaSchedule, so its reported solve time excludes, and in a complete pipeline adds to, MetaSchedule's schedule-search time.} One two-stage analytical selection pass replaces hundreds to thousands of compile-and-run trials, the source of the gap of two to four orders of magnitude in \autoref{fig:network-operator-curves}.
+
+\begin{figure}[!htbp]
+\centering
+\definecolor{curveMosaic}{HTML}{CC0000}
+\definecolor{curveTVM}{HTML}{FF6666}
+\definecolor{curveSolverMosaic}{HTML}{0066CC}
+\definecolor{curveSolverTVM}{HTML}{4D94E6}
+\resizebox{0.85\textwidth}{!}{%
+\begin{tikzpicture}
+\begin{scope}[xshift=0.125\columnwidth, yshift=4.30cm]
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    yticklabel style={color=curveMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=1, ymax=100,
+    ytick={1,10,100},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+    xtick={1,10,100,1000},
+    xticklabels={1,$10^1$,$10^2$,$10^3$},
+    xticklabel style={font=\scriptsize},
+    grid=major,
+    grid style={line width=0.3pt, draw=gray!25},
+    axis y line*=left,
+    axis x line*=bottom,
+    title={CNN},
+    title style={font=\footnotesize, yshift=-0.2cm},
+]
+\addplot[color=curveMosaic, line width=0.55pt, solid, mark=*, mark size=1.2pt] coordinates {
+    (1,4.2312) (10,4.2312) (100,4.2312) (200,4.2312) (500,4.2312) (1000,4.2312)
+};
+\addplot[color=curveTVM, line width=0.55pt, solid, mark=square*, mark size=1.2pt] coordinates {
+    (1,51.732) (10,60.3056) (100,6.7591) (200,6.8391) (500,7.4544) (1000,5.8638)
+};
+\end{axis}
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    axis y line*=right,
+    axis x line=none,
+    yticklabel style={color=curveSolverMosaic, opacity=0},
+    ymode=log,
+    ymin=0.1, ymax=1000,
+    ytick={0.1,10,1000},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+]
+\addplot[color=curveSolverMosaic, line width=0.55pt, dashed, mark=*, mark size=1.2pt] coordinates {
+    (1,2.9676) (10,2.9676) (100,2.9676) (200,2.9676) (500,2.9676) (1000,2.9676)
+};
+\addplot[color=curveSolverTVM, line width=0.55pt, dashed, mark=square*, mark size=1.2pt] coordinates {
+    (1,17.2) (10,42.3) (100,737.7) (200,939.3) (500,924.3) (1000,1078)
+};
+\end{axis}
+\end{scope}
+
+\begin{scope}[xshift=0.440\columnwidth, yshift=4.30cm]
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    yticklabel style={color=curveMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=0.1, ymax=100,
+    ytick={0.1,1,10},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+    xtick={1,10,100,1000},
+    xticklabels={1,$10^1$,$10^2$,$10^3$},
+    xticklabel style={font=\scriptsize},
+    grid=major,
+    grid style={line width=0.3pt, draw=gray!25},
+    axis y line*=left,
+    axis x line*=bottom,
+    title={LSTM},
+    title style={font=\footnotesize, yshift=-0.2cm},
+]
+\addplot[color=curveMosaic, line width=0.55pt, solid, mark=*, mark size=1.2pt] coordinates {
+    (1,0.2332) (10,0.2332) (100,0.2332) (200,0.2332) (500,0.2332) (1000,0.2332)
+};
+\addplot[color=curveTVM, line width=0.55pt, solid, mark=square*, mark size=1.2pt] coordinates {
+    (1,21.9229) (10,1.5843) (100,0.2814) (200,0.3319) (500,0.2185) (1000,0.2185)
+};
+\end{axis}
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    axis y line*=right,
+    axis x line=none,
+    yticklabel style={color=curveSolverMosaic, opacity=0},
+    ymode=log,
+    ymin=0.01, ymax=2000,
+    ytick={0.01,10,1000},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+]
+\addplot[color=curveSolverMosaic, line width=0.55pt, dashed, mark=*, mark size=1.2pt] coordinates {
+    (1,0.0741) (10,0.0741) (100,0.0741) (200,0.0741) (500,0.0741) (1000,0.0741)
+};
+\addplot[color=curveSolverTVM, line width=0.55pt, dashed, mark=square*, mark size=1.2pt] coordinates {
+    (1,16) (10,22.47) (100,131.84) (200,267.54) (500,660.27) (1000,1326.86)
+};
+\end{axis}
+\end{scope}
+
+\begin{scope}[xshift=0.755\columnwidth, yshift=4.30cm]
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    yticklabel style={color=curveMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=10, ymax=3000,
+    ytick={10,100,1000},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+    xtick={1,10,100,1000},
+    xticklabels={1,$10^1$,$10^2$,$10^3$},
+    xticklabel style={font=\scriptsize},
+    grid=major,
+    grid style={line width=0.3pt, draw=gray!25},
+    axis y line*=left,
+    axis x line*=bottom,
+    title={RNN},
+    title style={font=\footnotesize, yshift=-0.2cm},
+]
+\addplot[color=curveMosaic, line width=0.55pt, solid, mark=*, mark size=1.2pt] coordinates {
+    (1,20.4271) (10,20.4271) (100,20.4271) (200,20.4271) (500,20.4271) (1000,20.4271)
+};
+\addplot[color=curveTVM, line width=0.55pt, solid, mark=square*, mark size=1.2pt] coordinates {
+    (1,2252.1594) (10,81.9091) (100,21.8536) (200,20.0876) (500,17.8522) (1000,17.7766)
+};
+\end{axis}
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    axis y line*=right,
+    axis x line=none,
+    yticklabel style={color=curveSolverMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=0.1, ymax=2000,
+    ytick={0.1,10,1000},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+]
+\addplot[color=curveSolverMosaic, line width=0.55pt, dashed, mark=*, mark size=1.2pt] coordinates {
+    (1,0.716) (10,0.716) (100,0.716) (200,0.716) (500,0.716) (1000,0.716)
+};
+\addplot[color=curveSolverTVM, line width=0.55pt, dashed, mark=square*, mark size=1.2pt] coordinates {
+    (1,23.44) (10,219.66) (100,823.3) (200,895.68) (500,1007.83) (1000,1012.12)
+};
+\end{axis}
+\end{scope}
+
+\begin{scope}[xshift=0.125\columnwidth, yshift=1.65cm]
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    yticklabel style={color=curveMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=0.05, ymax=2,
+    ytick={0.05,0.2,1},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+    xtick={1,10,100,1000},
+    xticklabels={1,$10^1$,$10^2$,$10^3$},
+    xticklabel style={font=\scriptsize},
+    grid=major,
+    grid style={line width=0.3pt, draw=gray!25},
+    axis y line*=left,
+    axis x line*=bottom,
+    title={FNN},
+    title style={font=\footnotesize, yshift=-0.2cm},
+]
+\addplot[color=curveMosaic, line width=0.55pt, solid, mark=*, mark size=1.2pt] coordinates {
+    (1,0.0738) (10,0.0738) (100,0.0738) (200,0.0738) (500,0.0738) (1000,0.0738)
+};
+\addplot[color=curveTVM, line width=0.55pt, solid, mark=square*, mark size=1.2pt] coordinates {
+    (1,0.9439) (10,1.2417) (100,0.1618) (200,0.0944) (500,0.081) (1000,0.0741)
+};
+\end{axis}
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    axis y line*=right,
+    axis x line=none,
+    yticklabel style={color=curveSolverMosaic, opacity=0},
+    ymode=log,
+    ymin=0.01, ymax=1000,
+    ytick={0.01,1,100},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+]
+\addplot[color=curveSolverMosaic, line width=0.55pt, dashed, mark=*, mark size=1.2pt] coordinates {
+    (1,0.1194) (10,0.1194) (100,0.1194) (200,0.1194) (500,0.1194) (1000,0.1194)
+};
+\addplot[color=curveSolverTVM, line width=0.55pt, dashed, mark=square*, mark size=1.2pt] coordinates {
+    (1,9.8) (10,15.2) (100,78.2) (200,122.8) (500,282.5) (1000,561.9)
+};
+\end{axis}
+\end{scope}
+
+\begin{scope}[xshift=0.440\columnwidth, yshift=1.65cm]
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    yticklabel style={color=curveMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=10, ymax=500,
+    ytick={10,50,200},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+    xtick={1,10,100,1000},
+    xticklabels={1,$10^1$,$10^2$,$10^3$},
+    xticklabel style={font=\scriptsize},
+    grid=major,
+    grid style={line width=0.3pt, draw=gray!25},
+    axis y line*=left,
+    axis x line*=bottom,
+    title={Embedding},
+    title style={font=\footnotesize, yshift=-0.2cm},
+]
+\addplot[color=curveMosaic, line width=0.55pt, solid, mark=*, mark size=1.2pt] coordinates {
+    (1,12.9526) (10,12.9526) (100,12.9526) (200,12.9526) (500,12.9526) (1000,12.9526)
+};
+\addplot[color=curveTVM, line width=0.55pt, solid, mark=square*, mark size=1.2pt] coordinates {
+    (1,362.8838) (10,85.9239) (100,38.2759) (200,32.3857) (500,29.9019) (1000,25.491)
+};
+\end{axis}
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    axis y line*=right,
+    axis x line=none,
+    yticklabel style={color=curveSolverMosaic, opacity=0},
+    ymode=log,
+    ymin=0.01, ymax=3000,
+    ytick={0.01,10,1000},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+]
+\addplot[color=curveSolverMosaic, line width=0.55pt, dashed, mark=*, mark size=1.2pt] coordinates {
+    (1,0.3567) (10,0.3567) (100,0.3567) (200,0.3567) (500,0.3567) (1000,0.3567)
+};
+\addplot[color=curveSolverTVM, line width=0.55pt, dashed, mark=square*, mark size=1.2pt] coordinates {
+    (1,16.71) (10,108.89) (100,610.7) (200,1041.74) (500,2432.51) (1000,2432.51)
+};
+\end{axis}
+\end{scope}
+
+\begin{scope}[xshift=0.755\columnwidth, yshift=1.65cm]
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    yticklabel style={color=curveMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=1, ymax=50,
+    ytick={1,5,20},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+    xtick={1,10,100,1000},
+    xticklabels={1,$10^1$,$10^2$,$10^3$},
+    xticklabel style={font=\scriptsize},
+    grid=major,
+    grid style={line width=0.3pt, draw=gray!25},
+    axis y line*=left,
+    axis x line*=bottom,
+    title={Matmul},
+    title style={font=\footnotesize, yshift=-0.2cm},
+]
+\addplot[color=curveMosaic, line width=0.55pt, solid, mark=*, mark size=1.2pt] coordinates {
+    (1,4.4347) (10,4.4347) (100,4.4347) (200,4.4347) (500,4.4347) (1000,4.4347)
+};
+\addplot[color=curveTVM, line width=0.55pt, solid, mark=square*, mark size=1.2pt] coordinates {
+    (1,26.5995) (10,20.8549) (100,7.149) (200,4.2035) (500,4.5826) (1000,4.1599)
+};
+\end{axis}
+\begin{axis}[
+    width=0.34\columnwidth, height=3.35cm,
+    axis y line*=right,
+    axis x line=none,
+    yticklabel style={color=curveSolverMosaic, font=\scriptsize},
+    ymode=log,
+    ymin=0.01, ymax=2000,
+    ytick={0.01,10,1000},
+    xmode=log,
+    xmin=0.8, xmax=1200,
+]
+\addplot[color=curveSolverMosaic, line width=0.55pt, dashed, mark=*, mark size=1.2pt] coordinates {
+    (1,0.21) (10,0.21) (100,0.21) (200,0.21) (500,0.21) (1000,0.21)
+};
+\addplot[color=curveSolverTVM, line width=0.55pt, dashed, mark=square*, mark size=1.2pt] coordinates {
+    (1,11.06) (10,88.17) (100,360.63) (200,601.6) (500,866.03) (1000,1671.5)
+};
+\end{axis}
+\end{scope}
+
+\node[rotate=90, color=curveMosaic, font=\scriptsize] at (0.020\columnwidth, 3.25cm) {Execution time (ms)};
+\node[rotate=90, color=curveSolverMosaic, font=\scriptsize] at (1.100\columnwidth, 3.25cm) {Search/solver (s)};
+\node[font=\scriptsize] at (0.560\columnwidth, 0.72cm) {Number of Trials};
+\node at (0.560\columnwidth, -0.02cm) {
+    \begin{tikzpicture}
+        % Mosaic exec.
+        \draw[color=curveMosaic, line width=0.7pt, solid] (0,0) -- (0.28,0);
+        \filldraw[fill=curveMosaic, draw=white, line width=0.3pt]
+            (0.16,0) circle (0.045);
+        \node[right, font=\footnotesize] at (0.34,0) {Mosaic exec.};
+
+        % TVM exec.
+        \draw[color=curveTVM, line width=0.7pt, solid] (2.05,0) -- (2.33,0);
+        \filldraw[fill=curveTVM, draw=white, line width=0.3pt]
+            (2.16,-0.05) rectangle (2.26,0.05);
+        \node[right, font=\footnotesize] at (2.37,0) {TVM exec.};
+
+        % Mosaic solver
+        \draw[color=curveSolverMosaic, line width=0.7pt, dashed] (3.85,0) -- (4.13,0);
+        \filldraw[fill=curveSolverMosaic, draw=white, line width=0.3pt]
+            (4.01,0) circle (0.045);
+        \node[right, font=\footnotesize] at (4.19,0) {Mosaic solver};
+
+        % TVM search
+        \draw[color=curveSolverTVM, line width=0.7pt, dashed] (6.10,0) -- (6.38,0);
+        \filldraw[fill=curveSolverTVM, draw=white, line width=0.3pt]
+            (6.21,-0.05) rectangle (6.31,0.05);
+        \node[right, font=\footnotesize] at (6.44,0) {TVM search};
+    \end{tikzpicture}
+};
+
+% Reset to symmetric bounds so labels cannot bias the six-panel composition.
+\pgfresetboundingbox
+\path[use as bounding box] (-0.031\columnwidth,-0.25cm) rectangle (1.151\columnwidth,6.35cm);
+
+\end{tikzpicture}
+}
+\caption{Execution time and search/solver overhead for six operators, comparing with TVM MetaSchedule. Solid lines show execution time; dashed lines show selection cost.}
+\Description{Six curve plots for CNN, LSTM, RNN, FNN, embedding, and matmul comparing \name and tvm SSSRRSRS execution time and search or solver overhead.}
+\label{fig:network-operator-curves}
+\end{figure}
+
+\autoref{fig:network-operator-curves} includes a sixth operator, Matmul, scheduled from TVM metadata; \texttt{tvm.relay.nn.matmul} is a first-class operator with native MetaSchedule support, extending the evaluation to a standalone dense contraction. The PPCG side covers the same case through the GEMM kernel of \autoref{subsec:polybench}, so Matmul is not repeated in \autoref{fig:network-operators}.
+
+% Keep Fig. 6 before the next subsection without forcing a new page.
+\FloatBarrier
+\subsection{Performance on End-to-End Workloads}
+\label{subsec:e2e}
+
+% Match the half-width presentation used by Fig. 8 and keep this figure inside
+% the end-to-end subsection.  The explicit line count prevents the wrap from
+% carrying into the following subsection.
+\begin{wrapfigure}[12]{r}{0.49\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=81pt,keepaspectratio]{figures/network_bars.pdf}
+\caption{Performance of end-to-end workloads.}
+\Description{
+Four bars per network: PPCG baseline, \name{} over PPCG,
+TVM baseline, and \name{} over TVM.
+}
+\label{fig:e2e-fourbar}
+\end{wrapfigure}
+
+We compose the operators into three end-to-end workloads spanning the major network families: AlexNet~\cite{alexnet} (CNN), Seq2Seq~\cite{lstm} (RNN), and BertTiny~\cite{bert} (Transformer). \revO{In each comparison, both methods use the same network sizes, operator partitioning, execution order, and timing harness, without graph-level optimizations such as operator fusion, so only the kernels' execution parameters differ; \name selects them at compile time, and the network invokes the compiled kernels at run time.} \autoref{fig:e2e-fourbar} reports the per-network speedup of \name over both PPCG and TVM, with baseline execution times shown left of the corresponding bars. Over PPCG, \name achieves $1.66\times$, $9.23\times$, and $4.90\times$ on AlexNet, Seq2Seq, and BertTiny (geometric mean $4.22\times$); \revRthree{over MetaSchedule's tuned parameters on the same schedules, it achieves} $1.16\times$, $1.05\times$, and $1.13\times$ (geometric mean $1.11\times$). In this fixed-schedule comparison, \name achieves slightly lower end-to-end latency than MetaSchedule without measurement-driven search, while improving substantially over PPCG's heuristic. The end-to-end gains over PPCG exceed the per-operator gains of \autoref{subsec:operators} because consistently good execution-space choices across consecutive layers compound into a larger overall improvement.
+
+% Keep Fig. 7 inside the end-to-end subsection.
+\FloatBarrier
+\subsection{Ablation Study}
+\label{subsec:ablation}
+
+We ablate \name's three components cumulatively; FP-Wave keeps only the quantized wave objective (\autoref{sec:cost}) under a single fixed modeled placement scenario.
+
+\begin{wrapfigure}[10]{R}{0.49\textwidth}
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    ybar,
+    /pgf/bar width=4pt,
+    width=\linewidth,
+    height=3.5cm,
+    xmin=-0.36,
+    xmax=3.24,
+    xtick={0,0.72,1.44,2.16,2.88},
+    xticklabels={covariance,syrk,3mm,gemm,cnn},
+    ymin=0.8,
+    ymax=4.0,
+    ytick={1.0,1.5,2.0,2.5,3.0,3.5},
+    yticklabels={1.0,1.5,2.0,2.5,3.0,3.5},
+    ymajorgrids=true,
+    grid style=dashed,
+    xticklabel style={font=\scriptsize},
+    yticklabel style={font=\scriptsize},
+    ylabel={Execution time speedup},
+    ylabel style={font=\scriptsize},
+    nodes near coords,
+    every node near coord/.append style={
+        font=\tiny,
+        rotate=90,
+        anchor=west,
+        inner sep=0pt
+    },
+    point meta=explicit symbolic,
+    legend style={
+        at={(0.5,0.98)}, anchor=north,
+        legend columns=3, font=\scriptsize,
+        draw=none, fill=none,
+        /tikz/every even column/.append style={column sep=0.12cm}
+    },
+]
+\addplot[fill=color1, draw=black, bar shift=-6pt] coordinates {
+    (0,1)[31.512ms]
+    (0.72,1)[28.324ms]
+    (1.44,1)[50.674ms]
+    (2.16,1)[36.994ms]
+    (2.88,1)[265.793ms]
+};
+\addplot[fill=color3, draw=black, bar shift=0pt] coordinates {
+    (0,1.152)[\textbf{1.152$\times$}]
+    (0.72,1.319)[\textbf{1.319$\times$}]
+    (1.44,1.004)[\textbf{1.004$\times$}]
+    (2.16,1.125)[\textbf{1.125$\times$}]
+    (2.88,2.337)[]
+};
+\addplot[fill=color4, draw=black, bar shift=6pt] coordinates {
+    (0,1.827)[]
+    (0.72,1.439)[\textbf{1.439$\times$}]
+    (1.44,1.556)[\textbf{1.556$\times$}]
+    (2.16,1.630)[\textbf{1.630$\times$}]
+    (2.88,2.773)[]
+};
+\legend{FP-Wave, RF-Wave, Mosaic}
+\node[font=\tiny, rotate=90, anchor=center, inner sep=0pt] at ([xshift=6pt]axis cs:0,1.45) {\textbf{1.827$\times$}};
+\node[font=\tiny, rotate=90, anchor=center, inner sep=0pt] at (axis cs:2.88,1.93) {\textbf{2.337$\times$}};
+\node[font=\tiny, rotate=90, anchor=center, inner sep=0pt] at ([xshift=6pt]axis cs:2.88,2.28) {\textbf{2.773$\times$}};
+\end{axis}
+\end{tikzpicture}
+\caption{Ablation of \name's individual components.}
+\Description{Grouped bar chart showing execution-time speedups of RF-Wave and Mosaic over the FP-Wave baseline on covariance, syrk, 3mm, gemm, and CNN.}
+\label{fig:ablation}
+\end{wrapfigure}
+
+It disables both the register-feasibility filter and placement-scenario enumeration. RF-Wave adds the conservative register filter C4 while holding the modeled placement scenario fixed, isolating the filter's effect; full \name further enables placement-scenario enumeration over \(\Sigma\) (\autoref{sec:abstraction}), isolating the effect of placement-scenario reasoning. With FP-Wave as the baseline, RF-Wave improves performance by a geometric mean of $1.32\times$ and full \name by $1.79\times$, the largest gain on CNN, where filtering and placement-aware analytical reasoning together cut the selected configuration from $265.793$~ms to $95.851$~ms.
+
+\subsection{Solver Overhead and Scalability}
+\label{subsec:overhead}
+
+Finally, we examine the cost of \name's analytical selection, reported in the solver-time columns of \autoref{tab:benchmark}. \revO{For the PolyBench kernels in Table~\ref{tab:benchmark},} \name completes its two-stage solving in well under one second for most kernels and at most a few seconds in the most demanding case (\texttt{syr2k} at $3.32$~s on the RTX 4090). The formulation introduces decision variables over the bounded candidate pairs of \autoref{sec:abstraction} and applies the resource constraints of \autoref{sec:constraints} within each per-scenario solve. Its model size is therefore determined by the discrete candidate counts and the small placement-scenario set, rather than by the number of dynamic loop iterations. Relative to EATSS, \name reduces selection overhead by arithmetic-mean factors of $12.6\times$, $13.6\times$, and $13.9\times$ on RTX 4090, A100, and V100; unlike the latency ratios, this comparison is unaffected by the objective mismatch, since both selectors are analytical. This one-time compile-time cost requires no runtime tuning loop and remains modest across the evaluated kernels.
+
+\revO{Operators with identical structure and sizes share one solution, so network-level solving cost scales with distinct operators rather than invocations: AlexNet needs 8 solves (26.6 s), Seq2Seq 3 solves (0.59 s) for 7,203 operator invocations per forward pass, and BertTiny 7 solves (2.73 s) for 39 invocations, each incurred once at compile time. A new input shape requires re-solving because the candidates, grid size, and wave count change, but only the dimension sizes are updated; the schedule metadata and target profile are reused.}

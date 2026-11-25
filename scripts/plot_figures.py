@@ -105,8 +105,17 @@ def original_bars(network):
             v = r[field]
             baseline = field in ('ppcg','tvm')
             label = (r[field+'_ms'] + r'\,ms') if baseline else (v+r'$\times$')
-            anchor = 'east' if float(v)>3 else 'west'
-            plot += node(i,v,label,'rotate=90,anchor='+anchor,dx)
+            if float(v) <= 3:
+                plot += node(i, v, label, 'rotate=90,anchor=west', dx)
+            elif network:
+                # Keep the long baseline labels below the speedup callouts.
+                y = 9.25
+                plot += rf'\draw[black!65,line width=.3pt] ([xshift={dx}pt]axis cs:{i},{v}) -- ([xshift={dx}pt]axis cs:{i},{y});' + '\n'
+                plot += node(i, y, label, 'anchor=west', dx + 5.0)
+            else:
+                y = max(float(v), 6.0)
+                plot += rf'\draw[black!65,line width=.3pt] ([xshift={dx}pt]axis cs:{i},{v}) -- ([xshift={dx}pt]axis cs:{i},{y});' + '\n'
+                plot += node(i, y, label, 'anchor=south', dx - (2 if i == n - 1 else 0))
     return plot + r'\end{axis}'
 
 
@@ -127,7 +136,7 @@ def main():
             if result.returncode:
                 raise RuntimeError(result.stdout[-4000:])
             shutil.copy2(tex.with_suffix('.pdf'), figures / (name + '.pdf'))
-            if assets.is_dir():
+            if assets.is_dir() and assets.resolve() != figures.resolve():
                 shutil.copy2(tex.with_suffix('.pdf'), assets / (name + '.pdf'))
 
 

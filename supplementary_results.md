@@ -25,7 +25,7 @@ The geometric mean is 5.53% for the original five and 5.98% for all nine. Seven 
 | Program | Measured configurations classified | Violated C4 | Faster violators | Comparison |
 |---|---:|---:|---:|---|
 | GEMM | 2,232 | 941 | 2 | Two beat the fastest C4-feasible configuration. The latter was within 0.80% of the measured optimum. |
-| Jacobi-2D | 739 | 493 | 0 | The fastest violator was 9.4% slower than Mosaic's selection. |
+| Jacobi-2D | 739 | 493 | 0 | The fastest violator took 291.165409 ms, 9.394879% longer than Mosaic’s 266.16 ms. |
 | ATAX | 784 | 0 | 0 | All satisfied C4. |
 
 The classification uses all 2,232 successful GEMM configurations from the Fig. 1 sweep. The fastest measured time was 25.728223 ms. The fastest configuration satisfying C4 took 25.934214 ms. [Per-configuration results](data/gemm_c4.csv)
@@ -39,7 +39,7 @@ In the separate compilation check, 14 of 11,240 C4-feasible candidates spilled r
 | Agreement (18) | 2mm, 3mm, adi, atax, cholesky, correlation, covariance, fdtd-2d, gemm, gemver, gesummv, heat-3d, jacobi-1d, jacobi-2d, lu, seidel-2d, syr2k, syrk |
 | Disagreement (7) | bicg, doitgen, gramschmidt, mvt, symm, trisolv, trmm |
 
-Auxiliary kernels left to PPCG defaults were counted as consistent, as were written arrays that PPCG staged in accordance with Mosaic's fixed rule. All observed discrepancies had the same direction: Mosaic counted an array in shared memory while PPCG accessed it directly from global memory. The geometric-mean speedup over PPCG among those seven programs was 1.20×. The separate ablation in Fig. 9 reports 1.32× with the register filter and 1.79× with placement-scenario enumeration added.
+Auxiliary kernels left to PPCG defaults were counted as consistent, as were written arrays that PPCG staged in accordance with Mosaic's fixed rule. All observed discrepancies had the same direction: Mosaic counted an array in shared memory while PPCG accessed it directly from global memory. The geometric-mean speedup over PPCG among those seven programs was 1.20×, versus 1.28× for the other 18 and 1.25× overall. The separate ablation in Fig. 9 reports 1.32× with the register filter and 1.79× with placement-scenario enumeration added.
 
 ## Network solve times (§6.6)
 

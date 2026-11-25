@@ -125,7 +125,7 @@ R^{\mathit{live}}_{\mathit{in}}
 \label{eq:resident-blocks}
 \end{equation}
 \endgroup
-When \(\operatorname{smem}(\tvec;S)=0\), the shared memory ceiling in \(bps\) is omitted. The offset \(\Czero\) counts the control and addressing registers that stay live throughout the kernel, namely the reduction loop counters and the shared and global base pointers. Its value is fixed once the loop nest and modeled placement scenario are known and does not vary with the tile or block choice, so the solver treats it as a constant. \(\hat R\) is a conservative register lower bound because the counted values are simultaneously live. \revRthree{Because $R_{\mathit{avail}}$ counts 32-bit slots and an FP32 or FP64 value occupies one or two of them, the bound holds at either precision; precision otherwise enters through the byte-sized shared-memory footprint, which determines $bps$.} Thus, \(\hat R > R_{\rm avail}\) is sufficient to reject a configuration, whereas \(\hat R \le R_{\rm avail}\) only means that register infeasibility has not been established. C4 is therefore a one-sided pruning test rather than a predictor of backend allocation: violating the bound means that the modeled working-set lower bound already exceeds the register budget implied by the current residency estimate, while satisfying C4 does not guarantee spill-free backend allocation. \autoref{sec:eval} validates this distinction against post-compilation register behavior. \revRthree{C4 is evaluated at the pre-register residency $bps$ at which Eq.~\eqref{eq:model-summary} counts waves; a configuration with $\hat R > R_{\mathit{avail}}$ cannot reach $bps$, and scoring it there would underestimate its wave count. C4 may therefore exclude a configuration that runs efficiently at lower residency when registers limit residency; \autoref{sec:eval} measures this effect.}
+When \(\operatorname{smem}(\tvec;S)=0\), the shared memory ceiling in \(bps\) is omitted. The offset \(\Czero\) counts the control and addressing registers that stay live throughout the kernel, namely the reduction loop counters and the shared and global base pointers. Its value is fixed once the loop nest and modeled placement scenario are known and does not vary with the tile or block choice, so the solver treats it as a constant. \(\hat R\) is a conservative register lower bound because the counted values are simultaneously live. \revRthree{$R_{\mathit{avail}}$ counts 32-bit slots and depends on precision only through $bps$, which the byte-sized shared-memory footprint can limit. $\hat{R}$ instead counts values; since an FP32 value occupies one slot and an FP64 value two, $\hat{R}$ remains a lower bound at either precision, though a looser one in FP64.} Thus, \(\hat R > R_{\rm avail}\) is sufficient to reject a configuration, whereas \(\hat R \le R_{\rm avail}\) only means that register infeasibility has not been established. C4 is therefore a one-sided pruning test rather than a predictor of backend allocation: violating the bound means that the modeled working-set lower bound already exceeds the register budget implied by the current residency estimate, while satisfying C4 does not guarantee spill-free backend allocation. \autoref{sec:eval} validates this distinction against post-compilation register behavior. \revRthree{C4 is evaluated at the pre-register residency $bps$ at which Eq.~\eqref{eq:model-summary} counts waves; a configuration with $\hat R > R_{\mathit{avail}}$ cannot reach $bps$, and scoring it there would underestimate its wave count. C4 may therefore exclude a configuration that runs efficiently at lower residency when registers limit residency; \autoref{sec:eval} measures this effect.}
 
 For the GEMM feasibility example with modeled scenario \(S=\{A,B\}\), tile sizes
 \(\tile_i,\tile_j,\tile_k\), and
@@ -289,7 +289,9 @@ The outer loop explicitly enumerates only the modeled placement-scenario set \(\
 
 \begin{algorithm}[tbp]
 \small
+\ifrevmarkup\captionsetup{labelfont+={color=revRtwo}}\fi
 \caption{\revRtwo{Two-stage analytical selection in \name}}\label{alg:mosaic}
+\begin{revRtwoblock}
 \begin{algorithmic}[1]
 \Require Schedule metadata \(\mathcal{M}\), target profile \(\mathcal{H}\)
 \Ensure Tile sizes \(\tvec^*\), thread-block dimensions \(\mathbf b^*\)
@@ -301,6 +303,7 @@ The outer loop explicitly enumerates only the modeled placement-scenario set \(\
 \State \(S^*\gets\arg\min_S^{\mathrm{lex}}\,(F^*(S),\Phi^*(S))\)
 \State \Return \((\tvec_{S^*}^*,\mathbf b_{S^*}^*)\) \Comment{The backend does not receive \(S^*\).}
 \end{algorithmic}
+\end{revRtwoblock}
 \end{algorithm}
 
 As previewed at \autoref{eq:two-level}, the inner solve is a two-stage analytical selection. For a fixed modeled placement scenario \(S\), Stage 1 minimizes the quantized wave cost over the feasible discrete domain:

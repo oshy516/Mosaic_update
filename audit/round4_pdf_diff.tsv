@@ -1,0 +1,49 @@
+region	old_token	new_token	left_context	original	revised	right_context
+Body	358	358	( 2026 ) ,	23	25	pages . https :
+Body	429	429	39 , 40 ,	44	, 46 ,	] derive these transformations
+Body	712	714	27 , 34 ,	45	48	] and learningbased pruning
+Body	1243	1245	autotuners [ 34 ,	45	48	] , it derives
+Body	7830	7832	10 gives the perblock	costTblock	cost Tblock	, Eq . 2
+Body	9053	9056	same GEMM shapes .	Because the cost model reasons about tile footprints , register working sets , and traffic in bytes rather than in elements , the		element width enters only
+Body	9480	9460	the resource model on	representative		GEMM , ATAX ,
+Body	10336	10315	benchmarks . Fig .	4	5	compares Mosaic directly with
+Body	10685	10664	respectively . Fig .	5	6	reports the speedup .
+Body	10962	10941	budgets . Fig .	6	7	plots execution time and
+Body	11141	11120	magnitude in Fig .	6	7	. Fig . 7
+Body	11145	11124	6 . Fig .	6	7	includes a sixth operator
+Body	11208	11187	repeated in Fig .	5	6	. 6 . 4
+Body	11258	11237	) . Fig .	7	8	reports the pernetwork speedup
+Body	11788	11767	39 , 40 ,	44	, 46	] , including specialized
+Body	12036	12016	in scope to Mosaic	; TileMind targets CPU cache residency rather than GPU executionspace selection		. Mosaic applies a
+Body	12160	12129	such as Ansor [	45	48	] , MetaSchedule [
+Body	12210	12179	, 35 , 43		,	] ; all can
+Figure 4	0	0			corr . cov . gemm gmvr . gsum . symm syr2k syrk trmm 2mm 3mm atax bicg doit . mvt chol . gram . lu tris . adi fdtd heat jac - 1d jac - 2d seidel GMean 0 1 2 3 1 . 25 × 1 . 30 × Speedup vs PPCG vs EATSS	∅
+Figure 5	57	57	/ TMosaic Fig .	4	5	. Mosaic speedup over
+Figure 6	0	0		4 . 00 6 . 00 PPCG Mosaic		CNN LSTM RNN FNN
+Figure 6	14	6	RNN FNN Embed 1		2 4 8 549	. 69 ms 5
+Figure 6	15	11	FNN Embed 1 .	00 1 . 04 1 . 08	69 ms	5 . 734 ×
+Figure 6	26	17	5 . 734 ×	3 . 853 × 549 . 69 ms		1010 . 2 ms
+Figure 6	38	21	1010 . 2 ms		1 . 015 ×	1452 . 4 ms
+Figure 6	44	31	4 ms 1 .		035 × 1 .	6980 ms 1 .
+Figure 6	46	37	1 . 6980 ms		1 . 002 ×	544 . 26 ms
+Figure 6	50	45	544 . 26 ms	1	3	. 853 × Execution
+Figure 6	52	47	26 ms 1 .	015 × 1 . 035 × 1 . 002	853	× Execution speedup PPCG
+Figure 6	63	50	. 002 × Execution	time		speedup PPCG Mosaic Fig
+Figure 6	65	51	× Execution time speedup		PPCG Mosaic	Fig . 6 .
+Figure 6	67	55	time speedup Fig .	5	6	. Performance of deep
+Figure 7	48	48	103 10 - 1	. 3 10 - 0 . 7		100 FNN 10 -
+Figure 7	67	60	101 102 103 101	101 . 7		102 Embedding 10 -
+Figure 7	71	61	101 . 7 102	. 3		Embedding 10 - 2
+Figure 7	84	72	101 102 103 100	100 . 7		101 Matmul 10 -
+Figure 7	88	73	100 . 7 101	. 3		Matmul 10 - 2
+Figure 7	122	105	TVM search Fig .	6	7	. Execution time and
+Figure 8	0	0		25 10	AlexNet Seq2Seq BertTiny 1 2 4 8 850 . 869 ms 1 . 660 × 26 . 2720 ms 1 . 159 × 102720 ms 9 . 227 × 614 . 433 ms 1 . 052 × 226 . 710 ms 4 . 900 × 5 . 40400 ms 1 . 127 × Execution speedup	PPCG Mosaic / PPCG
+Figure 8	10	63	TVM Mosaic / TVM	AlexNet Seq2Seq BertTiny 1 . 00 1 . 10 1 . 20 1 . 660 × 9 . 227 × 4 . 900 × 850 . 869ms 102720ms 226 . 710ms 26 . 2720ms 614 . 433ms 5 . 40400ms 1 . 159 × 1 . 052 × 1 . 127 × Execution time speedup		Fig . 8 .
+Figure 8	67	65	time speedup Fig .	7	8	. Performance of endtoend
+Figure 9	23	23	0 3 . 5	1 . 827 × 2 . 337 × 2 . 773 ×		31 . 512ms 28
+Figure 9	66	54	1 . 125 ×		2 . 337 × 1 . 827 ×	1 . 439 ×
+Figure 9	78	74	1 . 630 ×		2 . 773 ×	Execution time speedup FPWave
+Figure 9	86	86	RFWave Mosaic Fig .	8	9	. Ablation of Mosaic
+References	3243	3243	1772982 [ 44 ]		Yi Zhai , Sijia Yang , Keyu Pan , Renwei Zhang , Shuo Liu , Chao Liu , Zichun Ye , Jianmin Ji , Jie Zhao , Yu Zhang , and Yanyong Zhang . 2024 . Enabling Tensor Language Model to Assist in Generating HighPerformance Tensor Programs for Deep Learning . In Proceedings of the 18th USENIX Symposium on Operating Systems Design and Implementation ( OSDI ’ 24 ) . USENIX Association , Santa Clara , CA , USA , 289 – 305 . [ 45 ] Jie Zhao and Peng Di . 2020 . Optimizing the Memory Hierarchy by Compositing Automatic Transformations on Computations and Data . In Proceedings of the 53rd Annual IEEE / ACM International Symposium on Microarchitecture ( MICRO ’ 20 ) . IEEE , 427 – 441 . https : / / doi . org / 10 . 1109 / MICRO50266 . 2020 . 00044 [ 46 ]	Jie Zhao , Bojie
+References	3348	3501	3453483 . 3454106 [		47 ] Jie Zhao , Jinchen Xu , Peng Di , Wang Nie , Jiahui Hu , Yanzhi Yi , Sijia Yang , Zhen Geng , Renwei Zhang , Bojie Li , Zhiliang Gan , and Xuefeng Jin . 2024 . Modeling the Interplay between Loop Tiling and Fusion in Optimizing Compilers Using Affine Relations . ACM Trans . Comput . Syst . 41 , 1 – 4 , Article 5 ( Jan . 2024 ) ,	45 pages . https
+References	3349	3579	. 3454106 [ 45		pages . https : / / doi . org / 10 . 1145 / 3635305 [ 48	] Lianmin Zheng ,

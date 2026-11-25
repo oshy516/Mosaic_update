@@ -1,0 +1,68 @@
+PASS requested abstract insertion \revO{the energy-aware }
+PASS requested abstract insertion \revRthree{the parameters tuned by }
+PASS mosaic.tex abstract original text verified, SHA256 c06c7a5429e0c8760be483731a3c8d21f13defb9cc56f9a21491f16c9febd446
+PASS sec.intro.tex itemize original text verified, SHA256 6df41d5e9e398dab67e35a8d2cac20a4a552925a54e4db6aa67df90826164565
+PASS sec.eval.tex \label{tab:benchmark} original text verified, SHA256 cb3dfea611f3e846ff0383d5f190d1d488677ab19dc2d98136962ebdf1e7aa75
+PASS sec.eval.tex \label{tab:vendor-comparison} original text verified, SHA256 b9c3756b7a6dd2ab736d87be4087acb3eda7bf559d8c5b89cad74b078d9ba82d
+PASS no Han characters in manuscript text files
+PASS adapter occurrences 8 -> 8
+PASS round-four evaluation anchors
+PASS superseded evaluation text removed
+PASS excluded evaluation wording
+PASS TVM parameter-transfer wording
+PASS D1 CSV matches the supplied block
+PASS D2 CSV matches the supplied block
+PASS H800 sample and missing bars
+PASS GEMM ratios agree with supplied times to six decimals
+PASS Conv2D ratios agree with supplied times to six decimals
+PASS D1/D2/D6 geometric means 1.254428, 1.303731, 1.202094, 1.256516, 2.440071
+PASS D3 regret aggregates
+PASS full GEMM C4 classification
+PASS H800 staging agreement, 18 kernels: 1.28x
+PASS operator_bars source series count
+PASS operator_bars ppcg exact bar values
+PASS operator_bars ppcg millisecond labels
+PASS operator_bars mosaic exact bar values
+PASS operator_bars embedded asset
+PASS network_bars source series count
+PASS network_bars ppcg exact bar values
+PASS network_bars ppcg millisecond labels
+PASS network_bars mosaic_ppcg exact bar values
+PASS network_bars tvm exact bar values
+PASS network_bars tvm millisecond labels
+PASS network_bars mosaic_tvm exact bar values
+PASS network_bars embedded asset
+PASS marked PDF text / references
+PASS marked final compilation log
+PASS marked text colors on 25 pages, #0070c0, #00b050, #7030a0, #c00000
+PASS clean PDF text / references
+PASS clean final compilation log
+PASS clean text colors on 25 pages, black only
+PASS marked and clean PDF text and pagination match exactly
+PASS Algorithm 1 caption, label and body color
+PASS Table 6 caption, label and body color
+PASS p1 added purple reference 45
+PASS p1 added purple reference 47
+PASS p21 added purple reference 45
+PASS p21 added purple reference [47]
+PASS p22 added purple reference 44
+PASS fig:network-operators original caption
+PASS fig:network-operator-curves original caption
+PASS Fig. 7 all 24 coordinate series unchanged
+PASS Fig. 7 six visible right axes and 12 integer-power scales
+PASS fig:e2e-fourbar original caption
+PASS fig:ablation original caption
+PASS Fig. 9 all 15 heights and single-swatch legends
+PASS fig:bounded-ppcg-sweep original caption
+PASS tab:platforms original caption
+PASS Table 6 GEMM FLOP order, five shape/time/ratio rows and geometric mean
+PASS Table 6 unit-stride Conv2D shape 24x64x16x16x16x3x3x18x18
+PASS Table 6 unit-stride Conv2D shape 16x64x14x14x32x3x3x16x16
+PASS Table 6 unit-stride Conv2D shape 16x32x14x14x64x3x3x16x16
+PASS Table 6 unit-stride Conv2D shape 16x32x16x16x32x3x3x18x18
+PASS Table 6 unit-stride Conv2D shape 4x64x16x16x16x3x3x18x18
+PASS Table 6 Conv2D FLOP order, five shape/time/ratio rows and geometric mean
+PASS marked 25 pages including references
+PASS marked bibliography [42]-[48]
+PASS clean 25 pages including references
+PASS clean bibliography [42]-[48]

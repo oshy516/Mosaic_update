@@ -1,0 +1,4 @@
+region	old_token	new_token	left_context	original	revised	right_context
+Body	9038	9038	same GEMM shapes .	Because the cost model reasons about tile footprints , register working sets , and traffic in bytes rather than in elements , the		element width enters only
+Body	9465	9442	the resource model on	representative		GEMM , ATAX ,
+Body	12010	11986	in scope to Mosaic	; TileMind targets CPU cache residency rather than GPU executionspace selection		. Mosaic applies a
